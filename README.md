@@ -37,7 +37,7 @@ This project is engineered iteratively following a structured backlog pipeline:
 
 | Phase | Milestone / Issue | Status |
 | :--- | :--- | :---: |
-| **01. Discovery** | `[Spec]` Core User Journeys & Smart Basket Requirements | 🟡 In Progress |
+| **01. Discovery** | `[Spec]` Core User Journeys & Smart Basket Requirements | 🟢 Completed |
 | **02. Design** | `[Data]` Conceptual Domain Model & Entity Relationships | ⚪ Planned |
 | **03. Architecture**| `[Arch]` Tech Stack Selection & Database Evaluation | ⚪ Planned |
 | **04. Tooling** | `[Setup]` Scaffolding, Directory Layout & Local Env | ⚪ Planned |

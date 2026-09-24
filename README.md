@@ -39,7 +39,7 @@ This project is engineered iteratively following a structured backlog pipeline:
 | :--- | :--- | :---: |
 | **01. Discovery** | `[Spec]` Core User Journeys & Smart Basket Requirements | 🟢 Completed |
 | **02. Design** | `[Data]` Conceptual Domain Model & Entity Relationships | 🟢 Completed |
-| **03. Architecture**| `[Arch]` Tech Stack Selection & Database Evaluation | ⚪ Planned |
+| **03. Architecture**| `[Arch]` Tech Stack Selection & Database Evaluation | 🟢 Completed |
 | **04. Tooling** | `[Setup]` Scaffolding, Directory Layout & Local Env | ⚪ Planned |
 | **05. Data Layer** | `[Data]` Physical Database Schema & Baseline Migrations | ⚪ Planned |
 | **06. Testing Data**| `[Data]` Catalog Seeding Script & Test Data Fixtures | ⚪ Planned |
@@ -58,7 +58,8 @@ This project is engineered iteratively following a structured backlog pipeline:
 
 ### Prerequisites
 - Git
-- Runtime environment (Node.js / Python / Docker — *TBD in Issue #3*)
+- Python 3.11+
+- Docker & Docker Compose (for PostgreSQL 16)
 
 ### Local Setup
 ```bash

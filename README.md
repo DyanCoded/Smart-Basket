@@ -41,7 +41,7 @@ This project is engineered iteratively following a structured backlog pipeline:
 | **02. Design** | `[Data]` Conceptual Domain Model & Entity Relationships | 🟢 Completed |
 | **03. Architecture**| `[Arch]` Tech Stack Selection & Database Evaluation | 🟢 Completed |
 | **04. Tooling** | `[Setup]` Scaffolding, Directory Layout & Local Env | 🟢 Completed |
-| **05. Data Layer** | `[Data]` Physical Database Schema & Baseline Migrations | ⚪ Planned |
+| **05. Data Layer** | `[Data]` Physical Database Schema & Baseline Migrations | 🟢 Completed |
 | **06. Testing Data**| `[Data]` Catalog Seeding Script & Test Data Fixtures | ⚪ Planned |
 | **07. Core API** | `[Backend]` Product Search & Store Pricing Endpoints | ⚪ Planned |
 | **08. Algorithms** | `[Backend]` Basket Calculation & Multi-Store Optimization | ⚪ Planned |

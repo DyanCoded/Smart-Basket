@@ -1,6 +1,7 @@
 # Architectural Decision Records (ADR)
 
 ## Log Summary
+- **2026-09-25:** Implemented baseline physical database schema (PostgreSQL 16) with Alembic migration 0001_baseline_schema and SQLAlchemy 2.0 declarative entities.
 - **2026-09-25:** Established standard layered directory layout (`src/` with `core/`, `api/`, `models/`, `services/`), containerized PostgreSQL 16 with healthcheck via Docker Compose, environment variable templates (`.env.example`), and automated Ruff/Black/Pre-commit verification scripts.
 - **2026-09-24:** Adopted Python 3.11+, FastAPI, PostgreSQL 16, SQLAlchemy, and Alembic for Smart Basket backend and data layer; enforced via Ruff/Black.
 

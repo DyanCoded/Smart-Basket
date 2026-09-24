@@ -41,3 +41,8 @@ Thumbs.db
 # Docker volumes / local data
 pgdata/
 
+# Local AI assistant instructions
+AI_GUARDRAILS.md
+GEMINI.md
+
+

@@ -42,7 +42,7 @@ This project is engineered iteratively following a structured backlog pipeline:
 | **03. Architecture**| `[Arch]` Tech Stack Selection & Database Evaluation | 🟢 Completed |
 | **04. Tooling** | `[Setup]` Scaffolding, Directory Layout & Local Env | 🟢 Completed |
 | **05. Data Layer** | `[Data]` Physical Database Schema & Baseline Migrations | 🟢 Completed |
-| **06. Testing Data**| `[Data]` Catalog Seeding Script & Test Data Fixtures | ⚪ Planned |
+| **06. Testing Data**| `[Data]` Catalog Seeding Script & Test Data Fixtures | 🟢 Completed |
 | **07. Core API** | `[Backend]` Product Search & Store Pricing Endpoints | ⚪ Planned |
 | **08. Algorithms** | `[Backend]` Basket Calculation & Multi-Store Optimization | ⚪ Planned |
 | **09. Analytics** | `[Backend]` Price History Tracking & Intelligence APIs | ⚪ Planned |
@@ -89,7 +89,15 @@ This project is engineered iteratively following a structured backlog pipeline:
    docker compose up -d
    ```
 
-5. **Run test suite & code quality checks:**
+5. **Apply database migrations & seed catalog data:**
+   ```bash
+   alembic upgrade head
+   python scripts/seed.py
+   # Or run via SQL directly:
+   # psql -h localhost -U postgres -d smart_basket -f scripts/seed.sql
+   ```
+
+6. **Run test suite & code quality checks:**
    ```bash
    # Run automated verification suite (linter, formatter check, tests)
    python scripts/check.py

@@ -43,7 +43,7 @@ This project is engineered iteratively following a structured backlog pipeline:
 | **04. Tooling** | `[Setup]` Scaffolding, Directory Layout & Local Env | 🟢 Completed |
 | **05. Data Layer** | `[Data]` Physical Database Schema & Baseline Migrations | 🟢 Completed |
 | **06. Testing Data**| `[Data]` Catalog Seeding Script & Test Data Fixtures | 🟢 Completed |
-| **07. Core API** | `[Backend]` Product Search & Store Pricing Endpoints | ⚪ Planned |
+| **07. Core API** | `[Backend]` Product Search & Store Pricing Endpoints | 🟢 Completed |
 | **08. Algorithms** | `[Backend]` Basket Calculation & Multi-Store Optimization | ⚪ Planned |
 | **09. Analytics** | `[Backend]` Price History Tracking & Intelligence APIs | ⚪ Planned |
 | **10. DevOps** | `[CI/CD]` GitHub Actions Pipeline for Linting & Tests | ⚪ Planned |

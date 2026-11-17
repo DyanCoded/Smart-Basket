@@ -1,6 +1,7 @@
 # Architectural Decision Records (ADR)
 
 ## Log Summary
+- **2026-11-17:** Implemented Core API endpoints for catalog product search, product details, store pricing comparison, and store branch listings with input validation and standard error formatting (Issue #7).
 - **2026-11-17:** Implemented deterministic catalog seeding script (Python ORM & PostgreSQL raw SQL), multi-store price divergence verification query, and Pytest test fixtures (Issue #6).
 - **2026-09-25:** Implemented baseline physical database schema (PostgreSQL 16) with Alembic migration 0001_baseline_schema and SQLAlchemy 2.0 declarative entities.
 - **2026-09-25:** Established standard layered directory layout (`src/` with `core/`, `api/`, `models/`, `services/`), containerized PostgreSQL 16 with healthcheck via Docker Compose, environment variable templates (`.env.example`), and automated Ruff/Black/Pre-commit verification scripts.

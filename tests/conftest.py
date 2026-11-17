@@ -3,11 +3,14 @@
 from typing import Any, Generator
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from scripts.seed import seed_database
+from src.core.database import get_db
+from src.main import app
 from src.models.entities import Base
 from src.models.fixtures import (
     CATEGORIES,
@@ -53,9 +56,25 @@ def db_session(empty_db_session: Session) -> Generator[Session, None, None]:
     yield empty_db_session
 
 
+@pytest.fixture
+def client(db_session: Session) -> Generator[TestClient, None, None]:
+    """Yield a FastAPI TestClient configured to use the test database session."""
+
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
 @pytest.fixture(scope="session")
 def raw_catalog_fixtures() -> dict[str, list[dict[str, Any]]]:
-    """Provide structured raw catalog test fixtures for test suite assertions."""
+    """Provide structured raw catalog test fixtures for test assertions."""
     return {
         "retailers": RETAILERS,
         "stores": STORES,

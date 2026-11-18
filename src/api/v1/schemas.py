@@ -188,6 +188,59 @@ class BasketCalculationResponse(BaseModel):
     total_items_requested: int
 
 
+class PriceHistoryPoint(BaseModel):
+    """Single historical price log record."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    store_id: uuid.UUID
+    store_name: str
+    retailer_name: str
+    price: Decimal
+    is_promotional: bool
+    recorded_at: datetime
+
+
+class ProductPriceHistoryResponse(BaseModel):
+    """Historical timeseries of price observations for a product."""
+
+    product_id: uuid.UUID
+    product_name: str
+    store_id: Optional[uuid.UUID] = None
+    total_points: int
+    history: List[PriceHistoryPoint]
+
+
+class PriceIntelligenceResponse(BaseModel):
+    """Trend metrics and deal veracity intelligence for a product."""
+
+    product_id: uuid.UUID
+    product_name: str
+    store_id: Optional[uuid.UUID] = None
+    all_time_lowest_price: Decimal
+    all_time_highest_price: Decimal
+    current_lowest_price: Optional[Decimal] = None
+    current_average_price: Optional[Decimal] = None
+    historical_average_price: Optional[Decimal] = None
+    price_change_percentage: Decimal
+    trend_direction: str = Field(
+        description="Price trend direction: INCREASING, DECREASING, or STABLE"
+    )
+    is_on_promotion: bool
+    current_promotional_price: Optional[Decimal] = None
+    is_genuine_deal: bool
+    discount_veracity_score: Decimal = Field(
+        description="Rating from 0.00 to 100.00 on discount authenticity"
+    )
+    veracity_rating: str = Field(
+        description=(
+            "GENUINE_SAVINGS, ARTIFICIAL_DISCOUNT, REGULAR_PRICE, or NO_PROMOTION"
+        )
+    )
+    sample_size_days: int
+
+
 class ErrorResponse(BaseModel):
     """Standard error response payload."""
 

@@ -4,25 +4,131 @@ from __future__ import annotations
 
 import logging
 
+import yaml
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 
 from src.api.v1.router import api_v1_router
+from src.api.v1.schemas import ErrorResponse
 
 logger = logging.getLogger("smart_basket")
 
+OPENAPI_TAGS = [
+    {
+        "name": "products",
+        "description": (
+            "Universal grocery catalog search, category filtering, "
+            "barcode lookups, and packaging metadata."
+        ),
+    },
+    {
+        "name": "prices",
+        "description": (
+            "Active store-level product pricing, promotional discounts, "
+            "and branch-level inventory status."
+        ),
+    },
+    {
+        "name": "history",
+        "description": (
+            "Chronological price observation timeseries across configurable "
+            "date windows for inflation and price trend charting."
+        ),
+    },
+    {
+        "name": "intelligence",
+        "description": (
+            "Analytical trend intelligence, inflation metrics, and promotional "
+            "deal veracity scoring."
+        ),
+    },
+    {
+        "name": "stores",
+        "description": (
+            "Supermarket chains, retail brands, and physical branch locations."
+        ),
+    },
+    {
+        "name": "baskets",
+        "description": (
+            "Multi-store basket total calculations and Smart Mode split "
+            "optimization engine."
+        ),
+    },
+    {
+        "name": "health",
+        "description": "Service liveness and readiness monitoring endpoints.",
+    },
+]
+
+API_DESCRIPTION = """
+# Smart Basket API 🛒
+
+Welcome to the **Smart Basket API**, an automated price intelligence
+and multi-store basket optimization platform designed to eliminate
+the manual effort of hunting across multiple supermarket chains for
+the best grocery prices.
+
+---
+
+## 🚀 Key Capabilities
+
+1. **Catalog Search & Discovery (`/api/v1/products`)**
+   - Search products by name, brand, barcode, or category with pagination.
+   - Access packaging unit sizes (e.g. 2L, 500g, 1kg) and barcodes.
+
+2. **Store-Level Pricing (`/api/v1/products/{id}/prices`)**
+   - Compare active retail prices and stock availability across major
+     supermarket chains (Checkers, Woolworths, Pick n Pay, SPAR, Shoprite).
+
+3. **Smart Basket Optimizer (`/api/v1/baskets/calculate`)**
+   - **Single-Store Ranking:** Ranks supermarket branches by total basket
+     cost (lowest first).
+   - **Smart Split Optimization:** Recommends optimal 2-store splits
+     that yield maximum savings.
+   - **Inventory Alerts:** Flags missing or out-of-stock items per store branch.
+
+4. **Price History & Trend Intelligence (`/api/v1/products/{id}/history`)**
+   - Chronological timeseries price data across configurable date ranges.
+   - Inflation metrics, all-time high/low tracking, and promotional
+     discount veracity scoring.
+
+---
+
+## 📖 Interactive Documentation & Specs
+- **Swagger UI:** Accessible at `/docs` (alias `/api/docs`)
+- **ReDoc:** Accessible at `/redoc` (alias `/api/redoc`)
+- **OpenAPI 3.1 JSON Spec:** Available at `/openapi.json`
+- **OpenAPI 3.1 YAML Spec:** Available at `/openapi.yaml`
+- **Postman Collection:** Ready-to-import collection at `docs/postman_collection.json`
+"""
+
 app = FastAPI(
     title="Smart Basket API",
-    description=(
-        "Real-time grocery price intelligence and basket optimization engine."
-    ),
+    summary="Real-time grocery price intelligence and basket optimization engine",
+    description=API_DESCRIPTION,
     version="0.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
+    openapi_tags=OPENAPI_TAGS,
+    contact={
+        "name": "Smart Basket Engineering Team",
+        "url": "https://github.com/DyanCoded/Smart-Basket",
+    },
+    license_info={
+        "name": "MIT License",
+        "url": "https://opensource.org/licenses/MIT",
+    },
+    swagger_ui_parameters={
+        "defaultModelsExpandDepth": 1,
+        "displayRequestDuration": True,
+        "docExpansion": "list",
+        "filter": True,
+    },
 )
 
 # CORS configuration
@@ -38,7 +144,62 @@ app.add_middleware(
 app.include_router(api_v1_router, prefix="/api")
 
 
-@app.get("/health", tags=["health"])
+# Interactive Documentation Aliases & Spec Endpoints
+@app.get("/api/docs", include_in_schema=False)
+def api_docs_redirect() -> RedirectResponse:
+    """Redirect /api/docs to /docs for interactive Swagger UI."""
+    return RedirectResponse(url="/docs", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
+
+@app.get("/api/redoc", include_in_schema=False)
+def api_redoc_redirect() -> RedirectResponse:
+    """Redirect /api/redoc to /redoc for ReDoc documentation."""
+    return RedirectResponse(
+        url="/redoc", status_code=status.HTTP_307_TEMPORARY_REDIRECT
+    )
+
+
+@app.get("/api/openapi.json", include_in_schema=False)
+def api_openapi_json_redirect() -> RedirectResponse:
+    """Redirect /api/openapi.json to /openapi.json."""
+    return RedirectResponse(
+        url="/openapi.json", status_code=status.HTTP_307_TEMPORARY_REDIRECT
+    )
+
+
+@app.get(
+    "/openapi.yaml",
+    include_in_schema=False,
+    response_class=Response,
+)
+def get_openapi_yaml() -> Response:
+    """Serve OpenAPI specification in YAML format."""
+    schema = app.openapi()
+    yaml_content = yaml.dump(schema, sort_keys=False, allow_unicode=True)
+    return Response(content=yaml_content, media_type="application/x-yaml")
+
+
+@app.get(
+    "/health",
+    tags=["health"],
+    summary="Service health check",
+    description="Verify API service liveness and operational status.",
+    response_description="Liveness status and application name.",
+    responses={
+        status.HTTP_200_OK: {
+            "description": "Service is healthy and responding.",
+            "content": {
+                "application/json": {
+                    "example": {"status": "ok", "app": "Smart Basket API"}
+                }
+            },
+        },
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": ErrorResponse,
+            "description": "Internal server error occurred.",
+        },
+    },
+)
 def health_check() -> dict[str, str]:
     """Basic healthcheck endpoint verifying service liveness."""
     return {"status": "ok", "app": "Smart Basket API"}

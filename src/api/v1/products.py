@@ -22,32 +22,63 @@ from src.api.v1.schemas import (
 from src.core.database import get_db
 from src.services import catalog_service, intelligence_service
 
-router = APIRouter(prefix="/products", tags=["products"])
+router = APIRouter(
+    prefix="/products",
+    tags=["products"],
+    responses={
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": ErrorResponse,
+            "description": "Internal server error occurred.",
+        },
+    },
+)
 
 
 @router.get(
     "",
     response_model=ProductListResponse,
+    responses={
+        status.HTTP_200_OK: {
+            "model": ProductListResponse,
+            "description": "Paginated list of catalog products.",
+        },
+        status.HTTP_400_BAD_REQUEST: {
+            "model": ErrorResponse,
+            "description": "Invalid query parameters.",
+        },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "model": ErrorResponse,
+            "description": "Validation error in pagination parameters.",
+        },
+    },
     summary="Search and filter product catalog",
-    description="Search products by partial name, brand, or barcode with pagination.",
+    description=(
+        "Search and filter grocery products by case-insensitive partial name, "
+        "brand, barcode, or category UUID with offset-based pagination."
+    ),
+    response_description="Paginated list of matching catalog products.",
 )
 def list_products(
     db: Annotated[Session, Depends(get_db)],
     q: Annotated[
         str | None,
-        Query(description="Case-insensitive search term for name, brand, or barcode"),
+        Query(description=("Case-insensitive search term for name, brand, or barcode")),
     ] = None,
     brand: Annotated[
-        str | None, Query(description="Filter by exact or partial brand name")
+        str | None,
+        Query(description="Filter by exact or partial brand name"),
     ] = None,
     category_id: Annotated[
-        uuid.UUID | None, Query(description="Filter by category UUID")
+        uuid.UUID | None,
+        Query(description="Filter by category UUID"),
     ] = None,
     limit: Annotated[
-        int, Query(ge=1, le=100, description="Maximum number of items to return")
+        int,
+        Query(ge=1, le=100, description="Maximum number of items to return"),
     ] = 20,
     offset: Annotated[
-        int, Query(ge=0, description="Number of items to skip for pagination")
+        int,
+        Query(ge=0, description="Number of items to skip for pagination"),
     ] = 0,
 ) -> ProductListResponse:
     """Retrieve catalog products matching optional filter criteria."""
@@ -70,9 +101,26 @@ def list_products(
 @router.get(
     "/{product_id}",
     response_model=ProductResponse,
-    responses={status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}},
+    responses={
+        status.HTTP_200_OK: {
+            "model": ProductResponse,
+            "description": "Product metadata retrieved successfully.",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "model": ErrorResponse,
+            "description": "Product with specified id not found.",
+        },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "model": ErrorResponse,
+            "description": "Invalid UUID format in path parameter.",
+        },
+    },
     summary="Get product details",
-    description="Retrieve detailed product metadata including barcode and packaging.",
+    description=(
+        "Retrieve detailed product metadata including barcode, packaging "
+        "unit size, unit type, and associated category information."
+    ),
+    response_description="Detailed product metadata record.",
 )
 def get_product(
     product_id: uuid.UUID,
@@ -91,9 +139,26 @@ def get_product(
 @router.get(
     "/{product_id}/prices",
     response_model=ProductPricesResponse,
-    responses={status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}},
+    responses={
+        status.HTTP_200_OK: {
+            "model": ProductPricesResponse,
+            "description": "Active prices and stock status across all stores.",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "model": ErrorResponse,
+            "description": "Product with specified id not found.",
+        },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "model": ErrorResponse,
+            "description": "Invalid UUID format in path parameter.",
+        },
+    },
     summary="Get store pricing for product",
-    description="List active prices and stock status across stores.",
+    description=(
+        "List active prices, promotional discounts, and inventory stock "
+        "status across all monitored supermarket chains and store branches."
+    ),
+    response_description="Active store prices and stock status for the product.",
 )
 def get_product_prices(
     product_id: uuid.UUID,
@@ -122,31 +187,53 @@ def get_product_prices(
     "/{product_id}/history",
     response_model=ProductPriceHistoryResponse,
     responses={
-        status.HTTP_400_BAD_REQUEST: {"model": ErrorResponse},
-        status.HTTP_404_NOT_FOUND: {"model": ErrorResponse},
+        status.HTTP_200_OK: {
+            "model": ProductPriceHistoryResponse,
+            "description": "Chronological price observations returned.",
+        },
+        status.HTTP_400_BAD_REQUEST: {
+            "model": ErrorResponse,
+            "description": "Invalid date range parameters (start_date > end_date).",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "model": ErrorResponse,
+            "description": "Product or store with specified id not found.",
+        },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "model": ErrorResponse,
+            "description": "Validation error in query parameters or date formats.",
+        },
     },
     summary="Retrieve price timeseries history",
     description=(
         "Fetch timestamped price entries for a product across configurable "
-        "time windows and store locations."
+        "time windows and store locations, sorted chronologically for charting."
     ),
+    response_description="Historical price timeseries data points.",
 )
 def get_product_price_history(
     product_id: uuid.UUID,
     db: Annotated[Session, Depends(get_db)],
     store_id: Annotated[
-        uuid.UUID | None, Query(description="Filter timeseries by store UUID")
+        uuid.UUID | None,
+        Query(description="Filter timeseries by store UUID"),
     ] = None,
     start_date: Annotated[
-        datetime | None, Query(description="Beginning of historical window")
+        datetime | None,
+        Query(description="Beginning of historical window (ISO-8601)"),
     ] = None,
     end_date: Annotated[
-        datetime | None, Query(description="End of historical window")
+        datetime | None,
+        Query(description="End of historical window (ISO-8601)"),
     ] = None,
     limit: Annotated[
-        int, Query(ge=1, le=500, description="Max history points to return")
+        int,
+        Query(ge=1, le=500, description="Max history points to return"),
     ] = 100,
-    offset: Annotated[int, Query(ge=0, description="History points offset")] = 0,
+    offset: Annotated[
+        int,
+        Query(ge=0, description="History points offset"),
+    ] = 0,
 ) -> ProductPriceHistoryResponse:
     """Retrieve chronological price timeseries data for charting."""
     product = catalog_service.get_product_by_id(session=db, product_id=product_id)
@@ -192,12 +279,27 @@ def get_product_price_history(
 @router.get(
     "/{product_id}/intelligence",
     response_model=PriceIntelligenceResponse,
-    responses={status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}},
+    responses={
+        status.HTTP_200_OK: {
+            "model": PriceIntelligenceResponse,
+            "description": "Analytical intelligence and deal veracity score computed.",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "model": ErrorResponse,
+            "description": "Product or store with specified id not found.",
+        },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "model": ErrorResponse,
+            "description": "Invalid UUID format in path or query parameter.",
+        },
+    },
     summary="Get price trend intelligence and deal indicator",
     description=(
-        "Compute all-time high/low, average prices, inflation trend, "
-        "and discount veracity scores."
+        "Compute all-time high/low, current vs historical average prices, "
+        "percentage change, trend direction (INCREASING/DECREASING/STABLE), "
+        "and promotional discount veracity scoring (0-100 rating)."
     ),
+    response_description="Product price trend metrics and discount veracity analytics.",
 )
 def get_product_intelligence(
     product_id: uuid.UUID,

@@ -1,0 +1,416 @@
+{
+  "info": {
+    "_postman_id": "d1e4c8b2-5678-90ab-cdef-1234567890ab",
+    "name": "Smart Basket API",
+    "description": "Postman Collection for Smart Basket real-time grocery price intelligence and multi-store basket optimization platform.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "0.1.0"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Health",
+      "item": [
+        {
+          "name": "Check Service Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Verify API service liveness and operational readiness."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02. Catalog & Products",
+      "item": [
+        {
+          "name": "List Products (Search & Filter)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products?q=milk&limit=20&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "milk",
+                  "description": "Search term for name, brand, or barcode"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Max items per page"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Pagination offset"
+                }
+              ]
+            },
+            "description": "Retrieve catalog products with partial-match search."
+          },
+          "response": []
+        },
+        {
+          "name": "Filter Products by Category",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products?category_id=dcda34e0-efd6-5f43-b188-db739a0deab7&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "category_id",
+                  "value": "dcda34e0-efd6-5f43-b188-db739a0deab7",
+                  "description": "Category UUID (Dairy & Eggs)"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Max items per page"
+                }
+              ]
+            },
+            "description": "Filter products by specific category UUID."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Product Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/6e2941e3-033d-5768-8143-5e7ebc24b874",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products",
+                "6e2941e3-033d-5768-8143-5e7ebc24b874"
+              ]
+            },
+            "description": "Retrieve detailed product metadata including barcode and packaging unit size."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Active Store Prices for Product",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/6e2941e3-033d-5768-8143-5e7ebc24b874/prices",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products",
+                "6e2941e3-033d-5768-8143-5e7ebc24b874",
+                "prices"
+              ]
+            },
+            "description": "List active prices and stock status across all monitored supermarket store branches."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03. Price History & Intelligence",
+      "item": [
+        {
+          "name": "Get Price History Timeseries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/6e2941e3-033d-5768-8143-5e7ebc24b874/history?limit=100&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products",
+                "6e2941e3-033d-5768-8143-5e7ebc24b874",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "description": "Max history points"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Pagination offset"
+                }
+              ]
+            },
+            "description": "Fetch chronological timestamped price entries suitable for chart rendering."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Price Trend Intelligence & Deal Veracity",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/6e2941e3-033d-5768-8143-5e7ebc24b874/intelligence",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products",
+                "6e2941e3-033d-5768-8143-5e7ebc24b874",
+                "intelligence"
+              ]
+            },
+            "description": "Compute all-time high/low, current vs historical averages, and promotional deal veracity score."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04. Stores & Supermarkets",
+      "item": [
+        {
+          "name": "List All Stores",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/stores?limit=50&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "stores"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Max stores per page"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Pagination offset"
+                }
+              ]
+            },
+            "description": "List supermarket branches with chain relationships."
+          },
+          "response": []
+        },
+        {
+          "name": "Filter Stores by Retailer Chain",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/stores?retailer_id=3ae15000-8907-5fb5-9904-c47dba4bcc3e&limit=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "stores"
+              ],
+              "query": [
+                {
+                  "key": "retailer_id",
+                  "value": "3ae15000-8907-5fb5-9904-c47dba4bcc3e",
+                  "description": "Parent retailer UUID (Checkers)"
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Max stores per page"
+                }
+              ]
+            },
+            "description": "Filter branches by parent supermarket chain."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05. Basket Optimizer",
+      "item": [
+        {
+          "name": "Calculate Basket & Smart Split (Standard 2 Items)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": \"6e2941e3-033d-5768-8143-5e7ebc24b874\",\n      \"quantity\": 2.0\n    },\n    {\n      \"product_id\": \"ab9928f5-221a-5546-8b6c-c4ec04fbe933\",\n      \"quantity\": 1.0\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/baskets/calculate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "baskets",
+                "calculate"
+              ]
+            },
+            "description": "Calculates ranked single-store totals and finds the cheapest multi-store split for milk and bread."
+          },
+          "response": []
+        },
+        {
+          "name": "Calculate Basket (Pantry Essentials 3 Items)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": \"6e2941e3-033d-5768-8143-5e7ebc24b874\",\n      \"quantity\": 2.0\n    },\n    {\n      \"product_id\": \"ab9928f5-221a-5546-8b6c-c4ec04fbe933\",\n      \"quantity\": 1.0\n    },\n    {\n      \"product_id\": \"4ca9f9c4-dea2-5f16-8ffb-4ec70ea08382\",\n      \"quantity\": 1.0\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/baskets/calculate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "baskets",
+                "calculate"
+              ]
+            },
+            "description": "Evaluates a 3-item essentials basket (milk, bread, eggs) across all stores with smart split savings."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

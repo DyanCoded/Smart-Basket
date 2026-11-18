@@ -5,41 +5,120 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional
+from typing import Any, List, Optional
 
+from fastapi import status
 from pydantic import BaseModel, ConfigDict, Field
+
+_EX_MILK_ID = "6e2941e3-033d-5768-8143-5e7ebc24b874"
+_EX_BREAD_ID = "ab9928f5-221a-5546-8b6c-c4ec04fbe933"
+_EX_MILK_NAME = "Full Cream Fresh Milk 2L"
+_EX_BREAD_NAME = "Superior Sliced White Bread 700g"
+_EX_CAT_DAIRY_ID = "dcda34e0-efd6-5f43-b188-db739a0deab7"
+_EX_RET_CHK_ID = "3ae15000-8907-5fb5-9904-c47dba4bcc3e"
+_EX_STORE_CHK_ID = "a3b3c260-9228-54dd-ba6d-3b216931987e"
+_EX_STORE_PNP_ID = "fb15a499-a4f4-5116-a197-f65578e3a720"
 
 
 class CategorySummary(BaseModel):
     """Category summary schema."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "dcda34e0-efd6-5f43-b188-db739a0deab7",
+                    "name": "Dairy & Eggs",
+                    "slug": "dairy-eggs",
+                }
+            ]
+        },
+    )
 
-    id: uuid.UUID
-    name: str
-    slug: str
+    id: uuid.UUID = Field(description="Unique category identifier")
+    name: str = Field(description="Category display name")
+    slug: str = Field(description="URL-friendly unique slug")
 
 
 class ProductResponse(BaseModel):
     """Detailed product metadata response."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "6e2941e3-033d-5768-8143-5e7ebc24b874",
+                    "name": "Full Cream Fresh Milk 2L",
+                    "brand": "Clover",
+                    "barcode": "6001299011011",
+                    "unit_size": "2.00",
+                    "unit_type": "L",
+                    "category_id": "dcda34e0-efd6-5f43-b188-db739a0deab7",
+                    "category": {
+                        "id": "dcda34e0-efd6-5f43-b188-db739a0deab7",
+                        "name": "Dairy & Eggs",
+                        "slug": "dairy-eggs",
+                    },
+                    "created_at": "2026-01-15T08:00:00Z",
+                }
+            ]
+        },
+    )
 
-    id: uuid.UUID
-    name: str
-    brand: Optional[str] = None
-    barcode: Optional[str] = None
-    unit_size: Decimal
-    unit_type: str
-    category_id: Optional[uuid.UUID] = None
-    category: Optional[CategorySummary] = None
-    created_at: datetime
+    id: uuid.UUID = Field(description="Unique product identifier")
+    name: str = Field(description="Universal item name")
+    brand: Optional[str] = Field(default=None, description="Manufacturer brand name")
+    barcode: Optional[str] = Field(default=None, description="Standard barcode or UPC")
+    unit_size: Decimal = Field(description="Standard packaging quantity or volume")
+    unit_type: str = Field(description="Unit of measurement (e.g. L, g, kg, unit)")
+    category_id: Optional[uuid.UUID] = Field(
+        default=None, description="Parent category UUID"
+    )
+    category: Optional[CategorySummary] = Field(
+        default=None, description="Expanded category details"
+    )
+    created_at: datetime = Field(
+        description="Timestamp when product was added to catalog"
+    )
 
 
 class ProductListResponse(BaseModel):
     """Paginated list of products."""
 
-    items: List[ProductResponse]
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "items": [
+                        {
+                            "id": "6e2941e3-033d-5768-8143-5e7ebc24b874",
+                            "name": "Full Cream Fresh Milk 2L",
+                            "brand": "Clover",
+                            "barcode": "6001299011011",
+                            "unit_size": "2.00",
+                            "unit_type": "L",
+                            "category_id": "dcda34e0-efd6-5f43-b188-db739a0deab7",
+                            "category": {
+                                "id": "dcda34e0-efd6-5f43-b188-db739a0deab7",
+                                "name": "Dairy & Eggs",
+                                "slug": "dairy-eggs",
+                            },
+                            "created_at": "2026-01-15T08:00:00Z",
+                        }
+                    ],
+                    "total": 1,
+                    "limit": 20,
+                    "offset": 0,
+                }
+            ]
+        }
+    )
+
+    items: List[ProductResponse] = Field(
+        description="List of product records matching criteria"
+    )
     total: int = Field(ge=0, description="Total matching items count")
     limit: int = Field(ge=1, le=100, description="Items limit per page")
     offset: int = Field(ge=0, description="Items offset")
@@ -48,32 +127,97 @@ class ProductListResponse(BaseModel):
 class RetailerSummary(BaseModel):
     """Retailer chain summary."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "3ae15000-8907-5fb5-9904-c47dba4bcc3e",
+                    "name": "Checkers",
+                    "slug": "checkers",
+                }
+            ]
+        },
+    )
 
-    id: uuid.UUID
-    name: str
-    slug: str
+    id: uuid.UUID = Field(description="Unique retailer chain UUID")
+    name: str = Field(description="Supermarket chain name")
+    slug: str = Field(description="Unique slug for chain")
 
 
 class StoreResponse(BaseModel):
     """Store branch response with retailer info."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
+                    "name": "Checkers Sandton City",
+                    "branch_code": "CHK-JHB-001",
+                    "address": "Sandton City Shopping Centre, Rivonia Rd, Sandton",
+                    "is_active": True,
+                    "retailer_id": "3ae15000-8907-5fb5-9904-c47dba4bcc3e",
+                    "retailer": {
+                        "id": "3ae15000-8907-5fb5-9904-c47dba4bcc3e",
+                        "name": "Checkers",
+                        "slug": "checkers",
+                    },
+                    "created_at": "2026-01-15T08:00:00Z",
+                }
+            ]
+        },
+    )
 
-    id: uuid.UUID
-    name: str
-    branch_code: Optional[str] = None
-    address: Optional[str] = None
-    is_active: bool
-    retailer_id: uuid.UUID
-    retailer: Optional[RetailerSummary] = None
-    created_at: datetime
+    id: uuid.UUID = Field(description="Unique store branch UUID")
+    name: str = Field(description="Store branch location name")
+    branch_code: Optional[str] = Field(
+        default=None, description="Retailer internal branch code"
+    )
+    address: Optional[str] = Field(
+        default=None, description="Physical address of store"
+    )
+    is_active: bool = Field(description="Whether the branch is currently monitored")
+    retailer_id: uuid.UUID = Field(description="Parent retailer chain UUID")
+    retailer: Optional[RetailerSummary] = Field(
+        default=None, description="Expanded parent retailer details"
+    )
+    created_at: datetime = Field(description="Timestamp when branch was registered")
 
 
 class StoreListResponse(BaseModel):
     """Paginated list of stores."""
 
-    items: List[StoreResponse]
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "items": [
+                        {
+                            "id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
+                            "name": "Checkers Sandton City",
+                            "branch_code": "CHK-JHB-001",
+                            "address": "Sandton City Shopping Centre, Rivonia Rd",
+                            "is_active": True,
+                            "retailer_id": "3ae15000-8907-5fb5-9904-c47dba4bcc3e",
+                            "retailer": {
+                                "id": "3ae15000-8907-5fb5-9904-c47dba4bcc3e",
+                                "name": "Checkers",
+                                "slug": "checkers",
+                            },
+                            "created_at": "2026-01-15T08:00:00Z",
+                        }
+                    ],
+                    "total": 8,
+                    "limit": 50,
+                    "offset": 0,
+                }
+            ]
+        }
+    )
+
+    items: List[StoreResponse] = Field(description="Store branches matching filter")
     total: int = Field(ge=0, description="Total matching stores count")
     limit: int = Field(ge=1, le=100, description="Items limit per page")
     offset: int = Field(ge=0, description="Items offset")
@@ -82,32 +226,93 @@ class StoreListResponse(BaseModel):
 class StorePriceItem(BaseModel):
     """Active price and availability of a product at a specific store."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "c1d2e3f4-1234-5678-90ab-cdef12345678",
+                    "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
+                    "store_name": "Checkers Sandton City",
+                    "branch_code": "CHK-JHB-001",
+                    "retailer_name": "Checkers",
+                    "price": "36.99",
+                    "is_promotional": False,
+                    "is_in_stock": True,
+                    "updated_at": "2026-01-15T08:00:00Z",
+                }
+            ]
+        },
+    )
 
-    id: uuid.UUID
-    store_id: uuid.UUID
-    store_name: str
-    branch_code: Optional[str] = None
-    retailer_name: str
-    price: Decimal
-    is_promotional: bool
-    is_in_stock: bool
-    updated_at: datetime
+    id: uuid.UUID = Field(description="Store price observation record UUID")
+    store_id: uuid.UUID = Field(description="Store branch UUID")
+    store_name: str = Field(description="Store branch location name")
+    branch_code: Optional[str] = Field(
+        default=None, description="Branch identifier code"
+    )
+    retailer_name: str = Field(description="Parent retailer chain name")
+    price: Decimal = Field(description="Active retail shelf price in ZAR")
+    is_promotional: bool = Field(
+        description="Whether price is an active promotional discount"
+    )
+    is_in_stock: bool = Field(description="Inventory availability flag")
+    updated_at: datetime = Field(description="Timestamp of latest price verification")
 
 
 class ProductPricesResponse(BaseModel):
     """Active prices across all monitored stores for a specific item."""
 
-    product_id: uuid.UUID
-    product_name: str
-    prices: List[StorePriceItem]
-    total_stores: int
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "product_id": "6e2941e3-033d-5768-8143-5e7ebc24b874",
+                    "product_name": "Full Cream Fresh Milk 2L",
+                    "prices": [
+                        {
+                            "id": "c1d2e3f4-1234-5678-90ab-cdef12345678",
+                            "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
+                            "store_name": "Checkers Sandton City",
+                            "branch_code": "CHK-JHB-001",
+                            "retailer_name": "Checkers",
+                            "price": "36.99",
+                            "is_promotional": False,
+                            "is_in_stock": True,
+                            "updated_at": "2026-01-15T08:00:00Z",
+                        }
+                    ],
+                    "total_stores": 1,
+                }
+            ]
+        }
+    )
+
+    product_id: uuid.UUID = Field(description="Target product identifier")
+    product_name: str = Field(description="Product display name")
+    prices: List[StorePriceItem] = Field(
+        description="Active prices across retail store branches"
+    )
+    total_stores: int = Field(description="Count of reporting stores")
 
 
 class BasketItemRequest(BaseModel):
     """Individual item requested in a shopping basket calculation."""
 
-    product_id: uuid.UUID
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "product_id": "6e2941e3-033d-5768-8143-5e7ebc24b874",
+                    "quantity": "2.00",
+                }
+            ]
+        }
+    )
+
+    product_id: uuid.UUID = Field(
+        description="Catalog product UUID to add to the basket"
+    )
     quantity: Decimal = Field(
         gt=Decimal("0.00"),
         default=Decimal("1.00"),
@@ -118,6 +323,25 @@ class BasketItemRequest(BaseModel):
 class BasketCalculationRequest(BaseModel):
     """Shopping basket calculation payload containing required items."""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "items": [
+                        {
+                            "product_id": "6e2941e3-033d-5768-8143-5e7ebc24b874",
+                            "quantity": "2.00",
+                        },
+                        {
+                            "product_id": "ab9928f5-221a-5546-8b6c-c4ec04fbe933",
+                            "quantity": "1.00",
+                        },
+                    ]
+                }
+            ]
+        }
+    )
+
     items: List[BasketItemRequest] = Field(
         min_length=1,
         description="List of grocery products and required quantities",
@@ -127,121 +351,482 @@ class BasketCalculationRequest(BaseModel):
 class BasketItemDetail(BaseModel):
     """Individual item line calculation for a specific store."""
 
-    product_id: uuid.UUID
-    product_name: str
-    quantity: Decimal
-    unit_price: Decimal
-    subtotal: Decimal
-    is_promotional: bool
+    product_id: uuid.UUID = Field(description="Product UUID")
+    product_name: str = Field(description="Item name")
+    quantity: Decimal = Field(description="Requested quantity")
+    unit_price: Decimal = Field(description="Unit price at store in ZAR")
+    subtotal: Decimal = Field(description="Line total (quantity * unit_price)")
+    is_promotional: bool = Field(description="Whether priced on promotion")
 
 
 class MissingItemDetail(BaseModel):
     """Missing or out-of-stock item warning for a specific store."""
 
-    product_id: uuid.UUID
-    product_name: str
-    quantity: Decimal
+    product_id: uuid.UUID = Field(description="Missing product UUID")
+    product_name: str = Field(description="Missing product name")
+    quantity: Decimal = Field(description="Unfulfilled quantity requested")
 
 
 class StoreBasketTotal(BaseModel):
     """Total basket cost calculation for a single store location."""
 
-    store_id: uuid.UUID
-    store_name: str
-    branch_code: Optional[str] = None
-    retailer_name: str
-    total_price: Decimal
-    is_complete_match: bool
-    items_available_count: int
-    total_items_count: int
-    items: List[BasketItemDetail]
-    missing_items: List[MissingItemDetail]
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
+                    "store_name": "Checkers Sandton City",
+                    "branch_code": "CHK-JHB-001",
+                    "retailer_name": "Checkers",
+                    "total_price": "92.97",
+                    "is_complete_match": True,
+                    "items_available_count": 2,
+                    "total_items_count": 2,
+                    "items": [
+                        {
+                            "product_id": "6e2941e3-033d-5768-8143-5e7ebc24b874",
+                            "product_name": "Full Cream Fresh Milk 2L",
+                            "quantity": "2.00",
+                            "unit_price": "36.99",
+                            "subtotal": "73.98",
+                            "is_promotional": False,
+                        },
+                        {
+                            "product_id": "ab9928f5-221a-5546-8b6c-c4ec04fbe933",
+                            "product_name": "Superior Sliced White Bread 700g",
+                            "quantity": "1.00",
+                            "unit_price": "18.99",
+                            "subtotal": "18.99",
+                            "is_promotional": False,
+                        },
+                    ],
+                    "missing_items": [],
+                }
+            ]
+        }
+    )
+
+    store_id: uuid.UUID = Field(description="Store branch UUID")
+    store_name: str = Field(description="Store branch location name")
+    branch_code: Optional[str] = Field(default=None, description="Retailer branch code")
+    retailer_name: str = Field(description="Parent retailer chain name")
+    total_price: Decimal = Field(
+        description="Calculated total cost for available basket items in ZAR"
+    )
+    is_complete_match: bool = Field(
+        description="True if store carries 100% of requested items in-stock"
+    )
+    items_available_count: int = Field(description="Number of basket items fulfilled")
+    total_items_count: int = Field(description="Total distinct items in basket")
+    items: List[BasketItemDetail] = Field(description="Fulfilled item line breakdowns")
+    missing_items: List[MissingItemDetail] = Field(
+        description="Items unavailable or missing at this store"
+    )
 
 
 class SplitStoreAllocation(BaseModel):
     """Assigned items and subtotal for a store participating in a split."""
 
-    store_id: uuid.UUID
-    store_name: str
-    retailer_name: str
-    items: List[BasketItemDetail]
-    subtotal: Decimal
+    store_id: uuid.UUID = Field(description="Participating store UUID")
+    store_name: str = Field(description="Store branch name")
+    retailer_name: str = Field(description="Retailer chain name")
+    items: List[BasketItemDetail] = Field(
+        description="Items allocated to this store for cheapest price"
+    )
+    subtotal: Decimal = Field(description="Subtotal for this store's portion")
 
 
 class OptimalSplitResult(BaseModel):
     """Smart Mode multi-store split optimization results."""
 
-    stores: List[SplitStoreAllocation]
-    total_price: Decimal
-    savings_amount: Decimal
-    savings_percentage: Decimal
-    is_complete_match: bool
-    cheaper_than_single_store: bool
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "stores": [
+                        {
+                            "store_id": _EX_STORE_CHK_ID,
+                            "store_name": "Checkers Sandton City",
+                            "retailer_name": "Checkers",
+                            "items": [
+                                {
+                                    "product_id": _EX_MILK_ID,
+                                    "product_name": "Full Cream Fresh Milk 2L",
+                                    "quantity": "2.00",
+                                    "unit_price": "36.99",
+                                    "subtotal": "73.98",
+                                    "is_promotional": False,
+                                }
+                            ],
+                            "subtotal": "73.98",
+                        },
+                        {
+                            "store_id": _EX_STORE_PNP_ID,
+                            "store_name": "Pick n Pay Rosebank",
+                            "retailer_name": "Pick n Pay",
+                            "items": [
+                                {
+                                    "product_id": _EX_BREAD_ID,
+                                    "product_name": "Superior Sliced White Bread 700g",
+                                    "quantity": "1.00",
+                                    "unit_price": "17.49",
+                                    "subtotal": "17.49",
+                                    "is_promotional": True,
+                                }
+                            ],
+                            "subtotal": "17.49",
+                        },
+                    ],
+                    "total_price": "91.47",
+                    "savings_amount": "1.50",
+                    "savings_percentage": "1.61",
+                    "is_complete_match": True,
+                    "cheaper_than_single_store": True,
+                }
+            ]
+        }
+    )
+
+    stores: List[SplitStoreAllocation] = Field(
+        description="Stores chosen for optimal combination"
+    )
+    total_price: Decimal = Field(description="Combined total price across stores")
+    savings_amount: Decimal = Field(
+        description="Absolute savings vs best single store in ZAR"
+    )
+    savings_percentage: Decimal = Field(
+        description="Percentage savings vs best single store"
+    )
+    is_complete_match: bool = Field(
+        description="True if all basket items are fulfilled across split stores"
+    )
+    cheaper_than_single_store: bool = Field(
+        description="True if split basket achieves lower total than any single store"
+    )
 
 
 class BasketCalculationResponse(BaseModel):
     """Response payload for multi-store basket evaluation and optimization."""
 
-    ranked_stores: List[StoreBasketTotal]
-    cheapest_single_store: Optional[StoreBasketTotal] = None
-    optimal_split: Optional[OptimalSplitResult] = None
-    total_items_requested: int
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "ranked_stores": [
+                        {
+                            "store_id": _EX_STORE_CHK_ID,
+                            "store_name": "Checkers Sandton City",
+                            "branch_code": "CHK-JHB-001",
+                            "retailer_name": "Checkers",
+                            "total_price": "92.97",
+                            "is_complete_match": True,
+                            "items_available_count": 2,
+                            "total_items_count": 2,
+                            "items": [
+                                {
+                                    "product_id": _EX_MILK_ID,
+                                    "product_name": "Full Cream Fresh Milk 2L",
+                                    "quantity": "2.00",
+                                    "unit_price": "36.99",
+                                    "subtotal": "73.98",
+                                    "is_promotional": False,
+                                },
+                                {
+                                    "product_id": _EX_BREAD_ID,
+                                    "product_name": "Superior Sliced White Bread 700g",
+                                    "quantity": "1.00",
+                                    "unit_price": "18.99",
+                                    "subtotal": "18.99",
+                                    "is_promotional": False,
+                                },
+                            ],
+                            "missing_items": [],
+                        }
+                    ],
+                    "cheapest_single_store": {
+                        "store_id": _EX_STORE_CHK_ID,
+                        "store_name": "Checkers Sandton City",
+                        "branch_code": "CHK-JHB-001",
+                        "retailer_name": "Checkers",
+                        "total_price": "92.97",
+                        "is_complete_match": True,
+                        "items_available_count": 2,
+                        "total_items_count": 2,
+                        "items": [
+                            {
+                                "product_id": _EX_MILK_ID,
+                                "product_name": "Full Cream Fresh Milk 2L",
+                                "quantity": "2.00",
+                                "unit_price": "36.99",
+                                "subtotal": "73.98",
+                                "is_promotional": False,
+                            },
+                            {
+                                "product_id": _EX_BREAD_ID,
+                                "product_name": "Superior Sliced White Bread 700g",
+                                "quantity": "1.00",
+                                "unit_price": "18.99",
+                                "subtotal": "18.99",
+                                "is_promotional": False,
+                            },
+                        ],
+                        "missing_items": [],
+                    },
+                    "optimal_split": {
+                        "stores": [
+                            {
+                                "store_id": _EX_STORE_CHK_ID,
+                                "store_name": "Checkers Sandton City",
+                                "retailer_name": "Checkers",
+                                "items": [
+                                    {
+                                        "product_id": _EX_MILK_ID,
+                                        "product_name": "Full Cream Fresh Milk 2L",
+                                        "quantity": "2.00",
+                                        "unit_price": "36.99",
+                                        "subtotal": "73.98",
+                                        "is_promotional": False,
+                                    }
+                                ],
+                                "subtotal": "73.98",
+                            },
+                            {
+                                "store_id": _EX_STORE_PNP_ID,
+                                "store_name": "Pick n Pay Rosebank",
+                                "retailer_name": "Pick n Pay",
+                                "items": [
+                                    {
+                                        "product_id": _EX_BREAD_ID,
+                                        "product_name": _EX_BREAD_NAME,
+                                        "quantity": "1.00",
+                                        "unit_price": "17.49",
+                                        "subtotal": "17.49",
+                                        "is_promotional": True,
+                                    }
+                                ],
+                                "subtotal": "17.49",
+                            },
+                        ],
+                        "total_price": "91.47",
+                        "savings_amount": "1.50",
+                        "savings_percentage": "1.61",
+                        "is_complete_match": True,
+                        "cheaper_than_single_store": True,
+                    },
+                    "total_items_requested": 2,
+                }
+            ]
+        }
+    )
+
+    ranked_stores: List[StoreBasketTotal] = Field(
+        description="Stores ranked deterministically by total price (ascending)"
+    )
+    cheapest_single_store: Optional[StoreBasketTotal] = Field(
+        default=None,
+        description="Cheapest single-store location capable of fulfilling items",
+    )
+    optimal_split: Optional[OptimalSplitResult] = Field(
+        default=None,
+        description="Smart Mode multi-store split optimization recommendation",
+    )
+    total_items_requested: int = Field(
+        description="Total distinct item types in the calculation request"
+    )
 
 
 class PriceHistoryPoint(BaseModel):
     """Single historical price log record."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "e5f6a7b8-1234-5678-90ab-cdef12345678",
+                    "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
+                    "store_name": "Checkers Sandton City",
+                    "retailer_name": "Checkers",
+                    "price": "34.99",
+                    "is_promotional": True,
+                    "recorded_at": "2026-01-01T10:00:00Z",
+                }
+            ]
+        },
+    )
 
-    id: uuid.UUID
-    store_id: uuid.UUID
-    store_name: str
-    retailer_name: str
-    price: Decimal
-    is_promotional: bool
-    recorded_at: datetime
+    id: uuid.UUID = Field(description="Historical price entry UUID")
+    store_id: uuid.UUID = Field(description="Store branch UUID")
+    store_name: str = Field(description="Store branch location name")
+    retailer_name: str = Field(description="Parent retailer chain name")
+    price: Decimal = Field(description="Historical observed price in ZAR")
+    is_promotional: bool = Field(description="Promotional status at observation time")
+    recorded_at: datetime = Field(description="Timestamp when price was recorded")
 
 
 class ProductPriceHistoryResponse(BaseModel):
     """Historical timeseries of price observations for a product."""
 
-    product_id: uuid.UUID
-    product_name: str
-    store_id: Optional[uuid.UUID] = None
-    total_points: int
-    history: List[PriceHistoryPoint]
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "product_id": "6e2941e3-033d-5768-8143-5e7ebc24b874",
+                    "product_name": "Full Cream Fresh Milk 2L",
+                    "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
+                    "total_points": 1,
+                    "history": [
+                        {
+                            "id": "e5f6a7b8-1234-5678-90ab-cdef12345678",
+                            "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
+                            "store_name": "Checkers Sandton City",
+                            "retailer_name": "Checkers",
+                            "price": "34.99",
+                            "is_promotional": True,
+                            "recorded_at": "2026-01-01T10:00:00Z",
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+
+    product_id: uuid.UUID = Field(description="Target product UUID")
+    product_name: str = Field(description="Product item name")
+    store_id: Optional[uuid.UUID] = Field(
+        default=None, description="Optional store filter applied"
+    )
+    total_points: int = Field(description="Total historical data points matched")
+    history: List[PriceHistoryPoint] = Field(
+        description="Chronological list of price observations"
+    )
 
 
 class PriceIntelligenceResponse(BaseModel):
     """Trend metrics and deal veracity intelligence for a product."""
 
-    product_id: uuid.UUID
-    product_name: str
-    store_id: Optional[uuid.UUID] = None
-    all_time_lowest_price: Decimal
-    all_time_highest_price: Decimal
-    current_lowest_price: Optional[Decimal] = None
-    current_average_price: Optional[Decimal] = None
-    historical_average_price: Optional[Decimal] = None
-    price_change_percentage: Decimal
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "product_id": "6e2941e3-033d-5768-8143-5e7ebc24b874",
+                    "product_name": "Full Cream Fresh Milk 2L",
+                    "store_id": None,
+                    "all_time_lowest_price": "32.99",
+                    "all_time_highest_price": "39.99",
+                    "current_lowest_price": "34.99",
+                    "current_average_price": "37.15",
+                    "historical_average_price": "36.80",
+                    "price_change_percentage": "-4.92",
+                    "trend_direction": "DECREASING",
+                    "is_on_promotion": True,
+                    "current_promotional_price": "34.99",
+                    "is_genuine_deal": True,
+                    "discount_veracity_score": "85.00",
+                    "veracity_rating": "GENUINE_SAVINGS",
+                    "sample_size_days": 60,
+                }
+            ]
+        }
+    )
+
+    product_id: uuid.UUID = Field(description="Target product UUID")
+    product_name: str = Field(description="Product item name")
+    store_id: Optional[uuid.UUID] = Field(
+        default=None, description="Store branch UUID if filtered"
+    )
+    all_time_lowest_price: Decimal = Field(
+        description="All-time lowest recorded price in ZAR"
+    )
+    all_time_highest_price: Decimal = Field(
+        description="All-time highest recorded price in ZAR"
+    )
+    current_lowest_price: Optional[Decimal] = Field(
+        default=None, description="Lowest price among active monitored stores"
+    )
+    current_average_price: Optional[Decimal] = Field(
+        default=None, description="Average active shelf price across stores"
+    )
+    historical_average_price: Optional[Decimal] = Field(
+        default=None, description="Longitudinal average price across time window"
+    )
+    price_change_percentage: Decimal = Field(
+        description="Percentage price change relative to previous benchmark"
+    )
     trend_direction: str = Field(
         description="Price trend direction: INCREASING, DECREASING, or STABLE"
     )
-    is_on_promotion: bool
-    current_promotional_price: Optional[Decimal] = None
-    is_genuine_deal: bool
+    is_on_promotion: bool = Field(
+        description="Whether product currently has active promotional prices"
+    )
+    current_promotional_price: Optional[Decimal] = Field(
+        default=None, description="Lowest active promotional price if on promotion"
+    )
+    is_genuine_deal: bool = Field(
+        description="Whether promotion offers genuine savings vs historical average"
+    )
     discount_veracity_score: Decimal = Field(
-        description="Rating from 0.00 to 100.00 on discount authenticity"
+        description=(
+            "Rating from 0.00 to 100.00 assessing promotional discount authenticity"
+        )
     )
     veracity_rating: str = Field(
         description=(
             "GENUINE_SAVINGS, ARTIFICIAL_DISCOUNT, REGULAR_PRICE, or NO_PROMOTION"
         )
     )
-    sample_size_days: int
+    sample_size_days: int = Field(
+        description="Number of days sampled in historical evaluation window"
+    )
 
 
 class ErrorResponse(BaseModel):
     """Standard error response payload."""
 
-    detail: str
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"detail": f"Product with id '{_EX_MILK_ID}' not found"},
+                {"detail": "start_date must be before or equal to end_date"},
+                {"detail": "Internal server error occurred"},
+            ]
+        }
+    )
+
+    detail: str = Field(description="Human-readable description of the error")
+    errors: Optional[List[dict[str, Any]]] = Field(
+        default=None,
+        description="Detailed validation issue breakdown when applicable",
+    )
+
+
+# Standard reusable OpenAPI response declarations
+COMMON_ERROR_RESPONSES = {
+    status.HTTP_500_INTERNAL_SERVER_ERROR: {
+        "model": ErrorResponse,
+        "description": "Internal server error occurred.",
+    },
+}
+
+STANDARD_400_RESPONSE = {
+    status.HTTP_400_BAD_REQUEST: {
+        "model": ErrorResponse,
+        "description": "Bad Request - invalid query parameters or logical error.",
+    }
+}
+
+STANDARD_404_RESPONSE = {
+    status.HTTP_404_NOT_FOUND: {
+        "model": ErrorResponse,
+        "description": "Not Found - requested resource does not exist.",
+    }
+}
+
+STANDARD_422_RESPONSE = {
+    status.HTTP_422_UNPROCESSABLE_CONTENT: {
+        "model": ErrorResponse,
+        "description": (
+            "Unprocessable Content - validation error in parameters or payload."
+        ),
+    }
+}

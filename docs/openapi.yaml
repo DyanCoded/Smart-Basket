@@ -1,0 +1,1598 @@
+openapi: 3.1.0
+info:
+  title: Smart Basket API
+  summary: Real-time grocery price intelligence and basket optimization engine
+  description: "\n# Smart Basket API \U0001F6D2\n\nWelcome to the **Smart Basket API**,\
+    \ an automated price intelligence\nand multi-store basket optimization platform\
+    \ designed to eliminate\nthe manual effort of hunting across multiple supermarket\
+    \ chains for\nthe best grocery prices.\n\n---\n\n## \U0001F680 Key Capabilities\n\
+    \n1. **Catalog Search & Discovery (`/api/v1/products`)**\n   - Search products\
+    \ by name, brand, barcode, or category with pagination.\n   - Access packaging\
+    \ unit sizes (e.g. 2L, 500g, 1kg) and barcodes.\n\n2. **Store-Level Pricing (`/api/v1/products/{id}/prices`)**\n\
+    \   - Compare active retail prices and stock availability across major\n     supermarket\
+    \ chains (Checkers, Woolworths, Pick n Pay, SPAR, Shoprite).\n\n3. **Smart Basket\
+    \ Optimizer (`/api/v1/baskets/calculate`)**\n   - **Single-Store Ranking:** Ranks\
+    \ supermarket branches by total basket\n     cost (lowest first).\n   - **Smart\
+    \ Split Optimization:** Recommends optimal 2-store splits\n     that yield maximum\
+    \ savings.\n   - **Inventory Alerts:** Flags missing or out-of-stock items per\
+    \ store branch.\n\n4. **Price History & Trend Intelligence (`/api/v1/products/{id}/history`)**\n\
+    \   - Chronological timeseries price data across configurable date ranges.\n \
+    \  - Inflation metrics, all-time high/low tracking, and promotional\n     discount\
+    \ veracity scoring.\n\n---\n\n## \U0001F4D6 Interactive Documentation & Specs\n\
+    - **Swagger UI:** Accessible at `/docs` (alias `/api/docs`)\n- **ReDoc:** Accessible\
+    \ at `/redoc` (alias `/api/redoc`)\n- **OpenAPI 3.1 JSON Spec:** Available at\
+    \ `/openapi.json`\n- **OpenAPI 3.1 YAML Spec:** Available at `/openapi.yaml`\n\
+    - **Postman Collection:** Ready-to-import collection at `docs/postman_collection.json`\n"
+  contact:
+    name: Smart Basket Engineering Team
+    url: https://github.com/DyanCoded/Smart-Basket
+  license:
+    name: MIT License
+    url: https://opensource.org/licenses/MIT
+  version: 0.1.0
+paths:
+  /api/v1/products:
+    get:
+      tags:
+      - products
+      summary: Search and filter product catalog
+      description: Search and filter grocery products by case-insensitive partial
+        name, brand, barcode, or category UUID with offset-based pagination.
+      operationId: list_products_api_v1_products_get
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Case-insensitive search term for name, brand, or barcode
+          title: Q
+        description: Case-insensitive search term for name, brand, or barcode
+      - name: brand
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter by exact or partial brand name
+          title: Brand
+        description: Filter by exact or partial brand name
+      - name: category_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          description: Filter by category UUID
+          title: Category Id
+        description: Filter by category UUID
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          description: Maximum number of items to return
+          default: 20
+          title: Limit
+        description: Maximum number of items to return
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          description: Number of items to skip for pagination
+          default: 0
+          title: Offset
+        description: Number of items to skip for pagination
+      responses:
+        '200':
+          description: Paginated list of catalog products.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductListResponse'
+        '500':
+          description: Internal server error occurred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error in pagination parameters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/products/{product_id}:
+    get:
+      tags:
+      - products
+      summary: Get product details
+      description: Retrieve detailed product metadata including barcode, packaging
+        unit size, unit type, and associated category information.
+      operationId: get_product_api_v1_products__product_id__get
+      parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Product Id
+      responses:
+        '200':
+          description: Product metadata retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '500':
+          description: Internal server error occurred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Product with specified id not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid UUID format in path parameter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/products/{product_id}/prices:
+    get:
+      tags:
+      - products
+      summary: Get store pricing for product
+      description: List active prices, promotional discounts, and inventory stock
+        status across all monitored supermarket chains and store branches.
+      operationId: get_product_prices_api_v1_products__product_id__prices_get
+      parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Product Id
+      responses:
+        '200':
+          description: Active prices and stock status across all stores.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPricesResponse'
+        '500':
+          description: Internal server error occurred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Product with specified id not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid UUID format in path parameter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/products/{product_id}/history:
+    get:
+      tags:
+      - products
+      summary: Retrieve price timeseries history
+      description: Fetch timestamped price entries for a product across configurable
+        time windows and store locations, sorted chronologically for charting.
+      operationId: get_product_price_history_api_v1_products__product_id__history_get
+      parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Product Id
+      - name: store_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          description: Filter timeseries by store UUID
+          title: Store Id
+        description: Filter timeseries by store UUID
+      - name: start_date
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          description: Beginning of historical window (ISO-8601)
+          title: Start Date
+        description: Beginning of historical window (ISO-8601)
+      - name: end_date
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          description: End of historical window (ISO-8601)
+          title: End Date
+        description: End of historical window (ISO-8601)
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          description: Max history points to return
+          default: 100
+          title: Limit
+        description: Max history points to return
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          description: History points offset
+          default: 0
+          title: Offset
+        description: History points offset
+      responses:
+        '200':
+          description: Chronological price observations returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPriceHistoryResponse'
+        '500':
+          description: Internal server error occurred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Invalid date range parameters (start_date > end_date).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Product or store with specified id not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error in query parameters or date formats.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/products/{product_id}/intelligence:
+    get:
+      tags:
+      - products
+      summary: Get price trend intelligence and deal indicator
+      description: Compute all-time high/low, current vs historical average prices,
+        percentage change, trend direction (INCREASING/DECREASING/STABLE), and promotional
+        discount veracity scoring (0-100 rating).
+      operationId: get_product_intelligence_api_v1_products__product_id__intelligence_get
+      parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Product Id
+      - name: store_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          description: Calculate metrics for a specific store location
+          title: Store Id
+        description: Calculate metrics for a specific store location
+      responses:
+        '200':
+          description: Analytical intelligence and deal veracity score computed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceIntelligenceResponse'
+        '500':
+          description: Internal server error occurred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Product or store with specified id not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid UUID format in path or query parameter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/stores:
+    get:
+      tags:
+      - stores
+      summary: List supermarket chains and store branches
+      description: Retrieve supermarket branches with parent retailer relationship,
+        address details, and active monitoring status. Supports filtering by retailer
+        chain UUID, active status, and search query.
+      operationId: list_stores_api_v1_stores_get
+      parameters:
+      - name: retailer_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          description: Filter stores by parent retailer UUID
+          title: Retailer Id
+        description: Filter stores by parent retailer UUID
+      - name: is_active
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          description: Filter by active status
+          title: Is Active
+        description: Filter by active status
+      - name: q
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Search term for store name, branch code, or address
+          title: Q
+        description: Search term for store name, branch code, or address
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          description: Maximum number of stores to return
+          default: 50
+          title: Limit
+        description: Maximum number of stores to return
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          description: Number of stores to skip for pagination
+          default: 0
+          title: Offset
+        description: Number of stores to skip for pagination
+      responses:
+        '200':
+          description: Paginated list of matching store branches.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreListResponse'
+        '500':
+          description: Internal server error occurred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error in pagination or query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/baskets/calculate:
+    post:
+      tags:
+      - baskets
+      summary: Calculate multi-store basket prices and smart split optimization
+      description: Evaluates a grocery shopping basket across all monitored supermarket
+        stores. Returns a deterministic price ranking of single-store totals (cheapest
+        first), missing item alerts, and the optimal 2-store split (Smart Mode) that
+        maximizes consumer savings.
+      operationId: calculate_basket_api_v1_baskets_calculate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BasketCalculationRequest'
+            examples:
+              two_item_basket:
+                summary: Standard 2-item basket (Milk & Bread)
+                description: Regular shopping run comparing prices for Clover Milk
+                  2L and Albany White Bread.
+                value:
+                  items:
+                  - product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+                    quantity: 2.0
+                  - product_id: ab9928f5-221a-5546-8b6c-c4ec04fbe933
+                    quantity: 1.0
+              family_pantry_basket:
+                summary: Pantry staples basket (Milk, Bread & Eggs)
+                description: Larger shopping basket evaluating single-store totals
+                  and split savings for Milk, Bread, and 18pk Eggs.
+                value:
+                  items:
+                  - product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+                    quantity: 2.0
+                  - product_id: ab9928f5-221a-5546-8b6c-c4ec04fbe933
+                    quantity: 1.0
+                  - product_id: 4ca9f9c4-dea2-5f16-8ffb-4ec70ea08382
+                    quantity: 1.0
+        required: true
+      responses:
+        '200':
+          description: Multi-store basket totals and optimal split calculated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasketCalculationResponse'
+        '500':
+          description: Internal server error occurred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Invalid basket calculation request or constraints.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: One or more requested product IDs not found in catalog.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error in basket request schema or quantities.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /health:
+    get:
+      tags:
+      - health
+      summary: Service health check
+      description: Verify API service liveness and operational status.
+      operationId: health_check_health_get
+      responses:
+        '200':
+          description: Service is healthy and responding.
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Health Check Health Get
+              example:
+                status: ok
+                app: Smart Basket API
+        '500':
+          description: Internal server error occurred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    BasketCalculationRequest:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/BasketItemRequest'
+          type: array
+          minItems: 1
+          title: Items
+          description: List of grocery products and required quantities
+      type: object
+      required:
+      - items
+      title: BasketCalculationRequest
+      description: Shopping basket calculation payload containing required items.
+      examples:
+      - items:
+        - product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+          quantity: '2.00'
+        - product_id: ab9928f5-221a-5546-8b6c-c4ec04fbe933
+          quantity: '1.00'
+    BasketCalculationResponse:
+      properties:
+        ranked_stores:
+          items:
+            $ref: '#/components/schemas/StoreBasketTotal'
+          type: array
+          title: Ranked Stores
+          description: Stores ranked deterministically by total price (ascending)
+        cheapest_single_store:
+          anyOf:
+          - $ref: '#/components/schemas/StoreBasketTotal'
+          - type: 'null'
+          description: Cheapest single-store location capable of fulfilling items
+        optimal_split:
+          anyOf:
+          - $ref: '#/components/schemas/OptimalSplitResult'
+          - type: 'null'
+          description: Smart Mode multi-store split optimization recommendation
+        total_items_requested:
+          type: integer
+          title: Total Items Requested
+          description: Total distinct item types in the calculation request
+      type: object
+      required:
+      - ranked_stores
+      - total_items_requested
+      title: BasketCalculationResponse
+      description: Response payload for multi-store basket evaluation and optimization.
+      examples:
+      - cheapest_single_store:
+          branch_code: CHK-JHB-001
+          is_complete_match: true
+          items:
+          - is_promotional: false
+            product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+            product_name: Full Cream Fresh Milk 2L
+            quantity: '2.00'
+            subtotal: '73.98'
+            unit_price: '36.99'
+          - is_promotional: false
+            product_id: ab9928f5-221a-5546-8b6c-c4ec04fbe933
+            product_name: Superior Sliced White Bread 700g
+            quantity: '1.00'
+            subtotal: '18.99'
+            unit_price: '18.99'
+          items_available_count: 2
+          missing_items: []
+          retailer_name: Checkers
+          store_id: a3b3c260-9228-54dd-ba6d-3b216931987e
+          store_name: Checkers Sandton City
+          total_items_count: 2
+          total_price: '92.97'
+        optimal_split:
+          cheaper_than_single_store: true
+          is_complete_match: true
+          savings_amount: '1.50'
+          savings_percentage: '1.61'
+          stores:
+          - items:
+            - is_promotional: false
+              product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+              product_name: Full Cream Fresh Milk 2L
+              quantity: '2.00'
+              subtotal: '73.98'
+              unit_price: '36.99'
+            retailer_name: Checkers
+            store_id: a3b3c260-9228-54dd-ba6d-3b216931987e
+            store_name: Checkers Sandton City
+            subtotal: '73.98'
+          - items:
+            - is_promotional: true
+              product_id: ab9928f5-221a-5546-8b6c-c4ec04fbe933
+              product_name: Superior Sliced White Bread 700g
+              quantity: '1.00'
+              subtotal: '17.49'
+              unit_price: '17.49'
+            retailer_name: Pick n Pay
+            store_id: fb15a499-a4f4-5116-a197-f65578e3a720
+            store_name: Pick n Pay Rosebank
+            subtotal: '17.49'
+          total_price: '91.47'
+        ranked_stores:
+        - branch_code: CHK-JHB-001
+          is_complete_match: true
+          items:
+          - is_promotional: false
+            product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+            product_name: Full Cream Fresh Milk 2L
+            quantity: '2.00'
+            subtotal: '73.98'
+            unit_price: '36.99'
+          - is_promotional: false
+            product_id: ab9928f5-221a-5546-8b6c-c4ec04fbe933
+            product_name: Superior Sliced White Bread 700g
+            quantity: '1.00'
+            subtotal: '18.99'
+            unit_price: '18.99'
+          items_available_count: 2
+          missing_items: []
+          retailer_name: Checkers
+          store_id: a3b3c260-9228-54dd-ba6d-3b216931987e
+          store_name: Checkers Sandton City
+          total_items_count: 2
+          total_price: '92.97'
+        total_items_requested: 2
+    BasketItemDetail:
+      properties:
+        product_id:
+          type: string
+          format: uuid
+          title: Product Id
+          description: Product UUID
+        product_name:
+          type: string
+          title: Product Name
+          description: Item name
+        quantity:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Quantity
+          description: Requested quantity
+        unit_price:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Unit Price
+          description: Unit price at store in ZAR
+        subtotal:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Subtotal
+          description: Line total (quantity * unit_price)
+        is_promotional:
+          type: boolean
+          title: Is Promotional
+          description: Whether priced on promotion
+      type: object
+      required:
+      - product_id
+      - product_name
+      - quantity
+      - unit_price
+      - subtotal
+      - is_promotional
+      title: BasketItemDetail
+      description: Individual item line calculation for a specific store.
+    BasketItemRequest:
+      properties:
+        product_id:
+          type: string
+          format: uuid
+          title: Product Id
+          description: Catalog product UUID to add to the basket
+        quantity:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Quantity
+          description: Required quantity, must be greater than zero
+          default: '1.00'
+      type: object
+      required:
+      - product_id
+      title: BasketItemRequest
+      description: Individual item requested in a shopping basket calculation.
+      examples:
+      - product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+        quantity: '2.00'
+    CategorySummary:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+          description: Unique category identifier
+        name:
+          type: string
+          title: Name
+          description: Category display name
+        slug:
+          type: string
+          title: Slug
+          description: URL-friendly unique slug
+      type: object
+      required:
+      - id
+      - name
+      - slug
+      title: CategorySummary
+      description: Category summary schema.
+      examples:
+      - id: dcda34e0-efd6-5f43-b188-db739a0deab7
+        name: Dairy & Eggs
+        slug: dairy-eggs
+    ErrorResponse:
+      properties:
+        detail:
+          type: string
+          title: Detail
+          description: Human-readable description of the error
+        errors:
+          anyOf:
+          - items:
+              additionalProperties: true
+              type: object
+            type: array
+          - type: 'null'
+          title: Errors
+          description: Detailed validation issue breakdown when applicable
+      type: object
+      required:
+      - detail
+      title: ErrorResponse
+      description: Standard error response payload.
+      examples:
+      - detail: Product with id '6e2941e3-033d-5768-8143-5e7ebc24b874' not found
+      - detail: start_date must be before or equal to end_date
+      - detail: Internal server error occurred
+    MissingItemDetail:
+      properties:
+        product_id:
+          type: string
+          format: uuid
+          title: Product Id
+          description: Missing product UUID
+        product_name:
+          type: string
+          title: Product Name
+          description: Missing product name
+        quantity:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Quantity
+          description: Unfulfilled quantity requested
+      type: object
+      required:
+      - product_id
+      - product_name
+      - quantity
+      title: MissingItemDetail
+      description: Missing or out-of-stock item warning for a specific store.
+    OptimalSplitResult:
+      properties:
+        stores:
+          items:
+            $ref: '#/components/schemas/SplitStoreAllocation'
+          type: array
+          title: Stores
+          description: Stores chosen for optimal combination
+        total_price:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Total Price
+          description: Combined total price across stores
+        savings_amount:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Savings Amount
+          description: Absolute savings vs best single store in ZAR
+        savings_percentage:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Savings Percentage
+          description: Percentage savings vs best single store
+        is_complete_match:
+          type: boolean
+          title: Is Complete Match
+          description: True if all basket items are fulfilled across split stores
+        cheaper_than_single_store:
+          type: boolean
+          title: Cheaper Than Single Store
+          description: True if split basket achieves lower total than any single store
+      type: object
+      required:
+      - stores
+      - total_price
+      - savings_amount
+      - savings_percentage
+      - is_complete_match
+      - cheaper_than_single_store
+      title: OptimalSplitResult
+      description: Smart Mode multi-store split optimization results.
+      examples:
+      - cheaper_than_single_store: true
+        is_complete_match: true
+        savings_amount: '1.50'
+        savings_percentage: '1.61'
+        stores:
+        - items:
+          - is_promotional: false
+            product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+            product_name: Full Cream Fresh Milk 2L
+            quantity: '2.00'
+            subtotal: '73.98'
+            unit_price: '36.99'
+          retailer_name: Checkers
+          store_id: a3b3c260-9228-54dd-ba6d-3b216931987e
+          store_name: Checkers Sandton City
+          subtotal: '73.98'
+        - items:
+          - is_promotional: true
+            product_id: ab9928f5-221a-5546-8b6c-c4ec04fbe933
+            product_name: Superior Sliced White Bread 700g
+            quantity: '1.00'
+            subtotal: '17.49'
+            unit_price: '17.49'
+          retailer_name: Pick n Pay
+          store_id: fb15a499-a4f4-5116-a197-f65578e3a720
+          store_name: Pick n Pay Rosebank
+          subtotal: '17.49'
+        total_price: '91.47'
+    PriceHistoryPoint:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+          description: Historical price entry UUID
+        store_id:
+          type: string
+          format: uuid
+          title: Store Id
+          description: Store branch UUID
+        store_name:
+          type: string
+          title: Store Name
+          description: Store branch location name
+        retailer_name:
+          type: string
+          title: Retailer Name
+          description: Parent retailer chain name
+        price:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Price
+          description: Historical observed price in ZAR
+        is_promotional:
+          type: boolean
+          title: Is Promotional
+          description: Promotional status at observation time
+        recorded_at:
+          type: string
+          format: date-time
+          title: Recorded At
+          description: Timestamp when price was recorded
+      type: object
+      required:
+      - id
+      - store_id
+      - store_name
+      - retailer_name
+      - price
+      - is_promotional
+      - recorded_at
+      title: PriceHistoryPoint
+      description: Single historical price log record.
+      examples:
+      - id: e5f6a7b8-1234-5678-90ab-cdef12345678
+        is_promotional: true
+        price: '34.99'
+        recorded_at: '2026-01-01T10:00:00Z'
+        retailer_name: Checkers
+        store_id: a3b3c260-9228-54dd-ba6d-3b216931987e
+        store_name: Checkers Sandton City
+    PriceIntelligenceResponse:
+      properties:
+        product_id:
+          type: string
+          format: uuid
+          title: Product Id
+          description: Target product UUID
+        product_name:
+          type: string
+          title: Product Name
+          description: Product item name
+        store_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Store Id
+          description: Store branch UUID if filtered
+        all_time_lowest_price:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: All Time Lowest Price
+          description: All-time lowest recorded price in ZAR
+        all_time_highest_price:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: All Time Highest Price
+          description: All-time highest recorded price in ZAR
+        current_lowest_price:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Current Lowest Price
+          description: Lowest price among active monitored stores
+        current_average_price:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Current Average Price
+          description: Average active shelf price across stores
+        historical_average_price:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Historical Average Price
+          description: Longitudinal average price across time window
+        price_change_percentage:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Price Change Percentage
+          description: Percentage price change relative to previous benchmark
+        trend_direction:
+          type: string
+          title: Trend Direction
+          description: 'Price trend direction: INCREASING, DECREASING, or STABLE'
+        is_on_promotion:
+          type: boolean
+          title: Is On Promotion
+          description: Whether product currently has active promotional prices
+        current_promotional_price:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Current Promotional Price
+          description: Lowest active promotional price if on promotion
+        is_genuine_deal:
+          type: boolean
+          title: Is Genuine Deal
+          description: Whether promotion offers genuine savings vs historical average
+        discount_veracity_score:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Discount Veracity Score
+          description: Rating from 0.00 to 100.00 assessing promotional discount authenticity
+        veracity_rating:
+          type: string
+          title: Veracity Rating
+          description: GENUINE_SAVINGS, ARTIFICIAL_DISCOUNT, REGULAR_PRICE, or NO_PROMOTION
+        sample_size_days:
+          type: integer
+          title: Sample Size Days
+          description: Number of days sampled in historical evaluation window
+      type: object
+      required:
+      - product_id
+      - product_name
+      - all_time_lowest_price
+      - all_time_highest_price
+      - price_change_percentage
+      - trend_direction
+      - is_on_promotion
+      - is_genuine_deal
+      - discount_veracity_score
+      - veracity_rating
+      - sample_size_days
+      title: PriceIntelligenceResponse
+      description: Trend metrics and deal veracity intelligence for a product.
+      examples:
+      - all_time_highest_price: '39.99'
+        all_time_lowest_price: '32.99'
+        current_average_price: '37.15'
+        current_lowest_price: '34.99'
+        current_promotional_price: '34.99'
+        discount_veracity_score: '85.00'
+        historical_average_price: '36.80'
+        is_genuine_deal: true
+        is_on_promotion: true
+        price_change_percentage: '-4.92'
+        product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+        product_name: Full Cream Fresh Milk 2L
+        sample_size_days: 60
+        trend_direction: DECREASING
+        veracity_rating: GENUINE_SAVINGS
+    ProductListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ProductResponse'
+          type: array
+          title: Items
+          description: List of product records matching criteria
+        total:
+          type: integer
+          minimum: 0.0
+          title: Total
+          description: Total matching items count
+        limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+          description: Items limit per page
+        offset:
+          type: integer
+          minimum: 0.0
+          title: Offset
+          description: Items offset
+      type: object
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      title: ProductListResponse
+      description: Paginated list of products.
+      examples:
+      - items:
+        - barcode: '6001299011011'
+          brand: Clover
+          category:
+            id: dcda34e0-efd6-5f43-b188-db739a0deab7
+            name: Dairy & Eggs
+            slug: dairy-eggs
+          category_id: dcda34e0-efd6-5f43-b188-db739a0deab7
+          created_at: '2026-01-15T08:00:00Z'
+          id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+          name: Full Cream Fresh Milk 2L
+          unit_size: '2.00'
+          unit_type: L
+        limit: 20
+        offset: 0
+        total: 1
+    ProductPriceHistoryResponse:
+      properties:
+        product_id:
+          type: string
+          format: uuid
+          title: Product Id
+          description: Target product UUID
+        product_name:
+          type: string
+          title: Product Name
+          description: Product item name
+        store_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Store Id
+          description: Optional store filter applied
+        total_points:
+          type: integer
+          title: Total Points
+          description: Total historical data points matched
+        history:
+          items:
+            $ref: '#/components/schemas/PriceHistoryPoint'
+          type: array
+          title: History
+          description: Chronological list of price observations
+      type: object
+      required:
+      - product_id
+      - product_name
+      - total_points
+      - history
+      title: ProductPriceHistoryResponse
+      description: Historical timeseries of price observations for a product.
+      examples:
+      - history:
+        - id: e5f6a7b8-1234-5678-90ab-cdef12345678
+          is_promotional: true
+          price: '34.99'
+          recorded_at: '2026-01-01T10:00:00Z'
+          retailer_name: Checkers
+          store_id: a3b3c260-9228-54dd-ba6d-3b216931987e
+          store_name: Checkers Sandton City
+        product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+        product_name: Full Cream Fresh Milk 2L
+        store_id: a3b3c260-9228-54dd-ba6d-3b216931987e
+        total_points: 1
+    ProductPricesResponse:
+      properties:
+        product_id:
+          type: string
+          format: uuid
+          title: Product Id
+          description: Target product identifier
+        product_name:
+          type: string
+          title: Product Name
+          description: Product display name
+        prices:
+          items:
+            $ref: '#/components/schemas/StorePriceItem'
+          type: array
+          title: Prices
+          description: Active prices across retail store branches
+        total_stores:
+          type: integer
+          title: Total Stores
+          description: Count of reporting stores
+      type: object
+      required:
+      - product_id
+      - product_name
+      - prices
+      - total_stores
+      title: ProductPricesResponse
+      description: Active prices across all monitored stores for a specific item.
+      examples:
+      - prices:
+        - branch_code: CHK-JHB-001
+          id: c1d2e3f4-1234-5678-90ab-cdef12345678
+          is_in_stock: true
+          is_promotional: false
+          price: '36.99'
+          retailer_name: Checkers
+          store_id: a3b3c260-9228-54dd-ba6d-3b216931987e
+          store_name: Checkers Sandton City
+          updated_at: '2026-01-15T08:00:00Z'
+        product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+        product_name: Full Cream Fresh Milk 2L
+        total_stores: 1
+    ProductResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+          description: Unique product identifier
+        name:
+          type: string
+          title: Name
+          description: Universal item name
+        brand:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Brand
+          description: Manufacturer brand name
+        barcode:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Barcode
+          description: Standard barcode or UPC
+        unit_size:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Unit Size
+          description: Standard packaging quantity or volume
+        unit_type:
+          type: string
+          title: Unit Type
+          description: Unit of measurement (e.g. L, g, kg, unit)
+        category_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Category Id
+          description: Parent category UUID
+        category:
+          anyOf:
+          - $ref: '#/components/schemas/CategorySummary'
+          - type: 'null'
+          description: Expanded category details
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+          description: Timestamp when product was added to catalog
+      type: object
+      required:
+      - id
+      - name
+      - unit_size
+      - unit_type
+      - created_at
+      title: ProductResponse
+      description: Detailed product metadata response.
+      examples:
+      - barcode: '6001299011011'
+        brand: Clover
+        category:
+          id: dcda34e0-efd6-5f43-b188-db739a0deab7
+          name: Dairy & Eggs
+          slug: dairy-eggs
+        category_id: dcda34e0-efd6-5f43-b188-db739a0deab7
+        created_at: '2026-01-15T08:00:00Z'
+        id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+        name: Full Cream Fresh Milk 2L
+        unit_size: '2.00'
+        unit_type: L
+    RetailerSummary:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+          description: Unique retailer chain UUID
+        name:
+          type: string
+          title: Name
+          description: Supermarket chain name
+        slug:
+          type: string
+          title: Slug
+          description: Unique slug for chain
+      type: object
+      required:
+      - id
+      - name
+      - slug
+      title: RetailerSummary
+      description: Retailer chain summary.
+      examples:
+      - id: 3ae15000-8907-5fb5-9904-c47dba4bcc3e
+        name: Checkers
+        slug: checkers
+    SplitStoreAllocation:
+      properties:
+        store_id:
+          type: string
+          format: uuid
+          title: Store Id
+          description: Participating store UUID
+        store_name:
+          type: string
+          title: Store Name
+          description: Store branch name
+        retailer_name:
+          type: string
+          title: Retailer Name
+          description: Retailer chain name
+        items:
+          items:
+            $ref: '#/components/schemas/BasketItemDetail'
+          type: array
+          title: Items
+          description: Items allocated to this store for cheapest price
+        subtotal:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Subtotal
+          description: Subtotal for this store's portion
+      type: object
+      required:
+      - store_id
+      - store_name
+      - retailer_name
+      - items
+      - subtotal
+      title: SplitStoreAllocation
+      description: Assigned items and subtotal for a store participating in a split.
+    StoreBasketTotal:
+      properties:
+        store_id:
+          type: string
+          format: uuid
+          title: Store Id
+          description: Store branch UUID
+        store_name:
+          type: string
+          title: Store Name
+          description: Store branch location name
+        branch_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Branch Code
+          description: Retailer branch code
+        retailer_name:
+          type: string
+          title: Retailer Name
+          description: Parent retailer chain name
+        total_price:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Total Price
+          description: Calculated total cost for available basket items in ZAR
+        is_complete_match:
+          type: boolean
+          title: Is Complete Match
+          description: True if store carries 100% of requested items in-stock
+        items_available_count:
+          type: integer
+          title: Items Available Count
+          description: Number of basket items fulfilled
+        total_items_count:
+          type: integer
+          title: Total Items Count
+          description: Total distinct items in basket
+        items:
+          items:
+            $ref: '#/components/schemas/BasketItemDetail'
+          type: array
+          title: Items
+          description: Fulfilled item line breakdowns
+        missing_items:
+          items:
+            $ref: '#/components/schemas/MissingItemDetail'
+          type: array
+          title: Missing Items
+          description: Items unavailable or missing at this store
+      type: object
+      required:
+      - store_id
+      - store_name
+      - retailer_name
+      - total_price
+      - is_complete_match
+      - items_available_count
+      - total_items_count
+      - items
+      - missing_items
+      title: StoreBasketTotal
+      description: Total basket cost calculation for a single store location.
+      examples:
+      - branch_code: CHK-JHB-001
+        is_complete_match: true
+        items:
+        - is_promotional: false
+          product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+          product_name: Full Cream Fresh Milk 2L
+          quantity: '2.00'
+          subtotal: '73.98'
+          unit_price: '36.99'
+        - is_promotional: false
+          product_id: ab9928f5-221a-5546-8b6c-c4ec04fbe933
+          product_name: Superior Sliced White Bread 700g
+          quantity: '1.00'
+          subtotal: '18.99'
+          unit_price: '18.99'
+        items_available_count: 2
+        missing_items: []
+        retailer_name: Checkers
+        store_id: a3b3c260-9228-54dd-ba6d-3b216931987e
+        store_name: Checkers Sandton City
+        total_items_count: 2
+        total_price: '92.97'
+    StoreListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/StoreResponse'
+          type: array
+          title: Items
+          description: Store branches matching filter
+        total:
+          type: integer
+          minimum: 0.0
+          title: Total
+          description: Total matching stores count
+        limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+          description: Items limit per page
+        offset:
+          type: integer
+          minimum: 0.0
+          title: Offset
+          description: Items offset
+      type: object
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      title: StoreListResponse
+      description: Paginated list of stores.
+      examples:
+      - items:
+        - address: Sandton City Shopping Centre, Rivonia Rd
+          branch_code: CHK-JHB-001
+          created_at: '2026-01-15T08:00:00Z'
+          id: a3b3c260-9228-54dd-ba6d-3b216931987e
+          is_active: true
+          name: Checkers Sandton City
+          retailer:
+            id: 3ae15000-8907-5fb5-9904-c47dba4bcc3e
+            name: Checkers
+            slug: checkers
+          retailer_id: 3ae15000-8907-5fb5-9904-c47dba4bcc3e
+        limit: 50
+        offset: 0
+        total: 8
+    StorePriceItem:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+          description: Store price observation record UUID
+        store_id:
+          type: string
+          format: uuid
+          title: Store Id
+          description: Store branch UUID
+        store_name:
+          type: string
+          title: Store Name
+          description: Store branch location name
+        branch_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Branch Code
+          description: Branch identifier code
+        retailer_name:
+          type: string
+          title: Retailer Name
+          description: Parent retailer chain name
+        price:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Price
+          description: Active retail shelf price in ZAR
+        is_promotional:
+          type: boolean
+          title: Is Promotional
+          description: Whether price is an active promotional discount
+        is_in_stock:
+          type: boolean
+          title: Is In Stock
+          description: Inventory availability flag
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+          description: Timestamp of latest price verification
+      type: object
+      required:
+      - id
+      - store_id
+      - store_name
+      - retailer_name
+      - price
+      - is_promotional
+      - is_in_stock
+      - updated_at
+      title: StorePriceItem
+      description: Active price and availability of a product at a specific store.
+      examples:
+      - branch_code: CHK-JHB-001
+        id: c1d2e3f4-1234-5678-90ab-cdef12345678
+        is_in_stock: true
+        is_promotional: false
+        price: '36.99'
+        retailer_name: Checkers
+        store_id: a3b3c260-9228-54dd-ba6d-3b216931987e
+        store_name: Checkers Sandton City
+        updated_at: '2026-01-15T08:00:00Z'
+    StoreResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+          description: Unique store branch UUID
+        name:
+          type: string
+          title: Name
+          description: Store branch location name
+        branch_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Branch Code
+          description: Retailer internal branch code
+        address:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Address
+          description: Physical address of store
+        is_active:
+          type: boolean
+          title: Is Active
+          description: Whether the branch is currently monitored
+        retailer_id:
+          type: string
+          format: uuid
+          title: Retailer Id
+          description: Parent retailer chain UUID
+        retailer:
+          anyOf:
+          - $ref: '#/components/schemas/RetailerSummary'
+          - type: 'null'
+          description: Expanded parent retailer details
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+          description: Timestamp when branch was registered
+      type: object
+      required:
+      - id
+      - name
+      - is_active
+      - retailer_id
+      - created_at
+      title: StoreResponse
+      description: Store branch response with retailer info.
+      examples:
+      - address: Sandton City Shopping Centre, Rivonia Rd, Sandton
+        branch_code: CHK-JHB-001
+        created_at: '2026-01-15T08:00:00Z'
+        id: a3b3c260-9228-54dd-ba6d-3b216931987e
+        is_active: true
+        name: Checkers Sandton City
+        retailer:
+          id: 3ae15000-8907-5fb5-9904-c47dba4bcc3e
+          name: Checkers
+          slug: checkers
+        retailer_id: 3ae15000-8907-5fb5-9904-c47dba4bcc3e
+tags:
+- name: products
+  description: Universal grocery catalog search, category filtering, barcode lookups,
+    and packaging metadata.
+- name: prices
+  description: Active store-level product pricing, promotional discounts, and branch-level
+    inventory status.
+- name: history
+  description: Chronological price observation timeseries across configurable date
+    windows for inflation and price trend charting.
+- name: intelligence
+  description: Analytical trend intelligence, inflation metrics, and promotional deal
+    veracity scoring.
+- name: stores
+  description: Supermarket chains, retail brands, and physical branch locations.
+- name: baskets
+  description: Multi-store basket total calculations and Smart Mode split optimization
+    engine.
+- name: health
+  description: Service liveness and readiness monitoring endpoints.

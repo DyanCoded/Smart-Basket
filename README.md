@@ -47,7 +47,7 @@ This project is engineered iteratively following a structured backlog pipeline:
 | **08. Algorithms** | `[Backend]` Basket Calculation & Multi-Store Optimization | 🟢 Completed |
 | **09. Analytics** | `[Backend]` Price History Tracking & Intelligence APIs | 🟢 Completed |
 | **10. DevOps** | `[CI/CD]` GitHub Actions Pipeline for Linting & Tests | 🟢 Completed |
-| **11. Specs** | `[Docs]` OpenAPI / Swagger Specs & API Explorer | ⚪ Planned |
+| **11. Specs** | `[Docs]` OpenAPI / Swagger Specs & API Explorer | 🟢 Completed |
 | **12. Delivery** | `[Release]` Final Packaging, Documentation & Review | ⚪ Planned |
 
 ---
@@ -106,4 +106,44 @@ This project is engineered iteratively following a structured backlog pipeline:
    python -m pytest
    python -m ruff check .
    python -m black --check .
-   ```
+   ```
+
+7. **Start local development API server:**
+   ```bash
+   uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+---
+
+## 📖 API Documentation & Interactive Explorer
+
+Smart Basket includes auto-generated OpenAPI 3.1.0 specifications and interactive documentation explorers:
+
+### Interactive Documentation UIs
+- **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs) (alias: [/api/docs](http://localhost:8000/api/docs))
+- **ReDoc UI:** [http://localhost:8000/redoc](http://localhost:8000/redoc) (alias: [/api/redoc](http://localhost:8000/api/redoc))
+
+### Exported Specifications & Client Collections
+- **OpenAPI 3.1.0 JSON Spec:** [`docs/openapi.json`](docs/openapi.json) (live endpoint: `/openapi.json`)
+- **OpenAPI 3.1.0 YAML Spec:** [`docs/openapi.yaml`](docs/openapi.yaml) (live endpoint: `/openapi.yaml`)
+- **Postman Collection v2.1.0:** [`docs/postman_collection.json`](docs/postman_collection.json) — Ready for one-click import into Postman or Insomnia.
+
+### Regenerating API Artifacts
+Whenever routes, Pydantic schemas, or examples change, regenerate the documentation artifacts with:
+```bash
+python scripts/export_openapi.py
+```
+
+### Endpoints Overview
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/health` | Service liveness and operational readiness check |
+| `GET` | `/api/v1/products` | Search catalog by partial name, brand, barcode, or category |
+| `GET` | `/api/v1/products/{id}` | Detailed product metadata including packaging unit size |
+| `GET` | `/api/v1/products/{id}/prices` | Active prices and stock status across monitored stores |
+| `GET` | `/api/v1/products/{id}/history` | Chronological price timeseries points for charting |
+| `GET` | `/api/v1/products/{id}/intelligence` | Trend analytics, inflation metrics, and deal veracity score |
+| `GET` | `/api/v1/stores` | Supermarket chains, retailer brands, and branch locations |
+| `POST`| `/api/v1/baskets/calculate` | Single-store totals and Smart Mode multi-store split optimization |
+

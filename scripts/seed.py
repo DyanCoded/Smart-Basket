@@ -10,13 +10,18 @@ import argparse
 import sys
 import uuid
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
-from sqlalchemy import delete, func, select
-from sqlalchemy.orm import Session
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.core.database import SessionLocal, engine
-from src.models.entities import (
+from sqlalchemy import delete, func, select  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
+
+from src.core.database import SessionLocal, engine  # noqa: E402
+from src.models.entities import (  # noqa: E402
     Base,
     Category,
     PriceHistory,
@@ -25,7 +30,7 @@ from src.models.entities import (
     Store,
     StorePrice,
 )
-from src.models.fixtures import (
+from src.models.fixtures import (  # noqa: E402
     CATEGORIES,
     PRICE_HISTORY,
     PRODUCTS,

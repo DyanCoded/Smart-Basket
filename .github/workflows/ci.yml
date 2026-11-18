@@ -36,6 +36,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/smart_basket_test
       ASYNC_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/smart_basket_test
       ENVIRONMENT: testing
+      PYTHONPATH: .
 
     steps:
       - name: Checkout repository

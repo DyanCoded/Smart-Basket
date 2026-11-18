@@ -1,6 +1,7 @@
 # Architectural Decision Records (ADR)
 
 ## Log Summary
+- **2026-11-18:** Configured automated GitHub Actions CI pipeline (.github/workflows/ci.yml) with PostgreSQL 16 containerization, Alembic migration verification, catalog seed validation, Ruff/Black code quality gates, and automated test suite execution (Issue #10).
 - **2026-11-18:** Implemented Price History Timeseries and Trend Intelligence endpoints with composite index query optimization, chronological ordering, inflation metrics, and promotional deal veracity scoring (Issue #9).
 - **2026-11-18:** Implemented Smart Basket calculation and 2-store split optimization engine (Journey 2) with deterministic ranking, stock/missing item warnings, exact Decimal currency math, and sub-100ms benchmarked performance (Issue #8).
 - **2026-11-17:** Implemented Core API endpoints for catalog product search, product details, store pricing comparison, and store branch listings with input validation and standard error formatting (Issue #7).

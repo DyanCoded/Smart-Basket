@@ -1,6 +1,7 @@
 # Architectural Decision Records (ADR)
 
 ## Log Summary
+- **2026-11-18:** Implemented Smart Basket calculation and 2-store split optimization engine (Journey 2) with deterministic ranking, stock/missing item warnings, exact Decimal currency math, and sub-100ms benchmarked performance (Issue #8).
 - **2026-11-17:** Implemented Core API endpoints for catalog product search, product details, store pricing comparison, and store branch listings with input validation and standard error formatting (Issue #7).
 - **2026-11-17:** Implemented deterministic catalog seeding script (Python ORM & PostgreSQL raw SQL), multi-store price divergence verification query, and Pytest test fixtures (Issue #6).
 - **2026-09-25:** Implemented baseline physical database schema (PostgreSQL 16) with Alembic migration 0001_baseline_schema and SQLAlchemy 2.0 declarative entities.

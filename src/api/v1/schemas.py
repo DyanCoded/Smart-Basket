@@ -104,6 +104,90 @@ class ProductPricesResponse(BaseModel):
     total_stores: int
 
 
+class BasketItemRequest(BaseModel):
+    """Individual item requested in a shopping basket calculation."""
+
+    product_id: uuid.UUID
+    quantity: Decimal = Field(
+        gt=Decimal("0.00"),
+        default=Decimal("1.00"),
+        description="Required quantity, must be greater than zero",
+    )
+
+
+class BasketCalculationRequest(BaseModel):
+    """Shopping basket calculation payload containing required items."""
+
+    items: List[BasketItemRequest] = Field(
+        min_length=1,
+        description="List of grocery products and required quantities",
+    )
+
+
+class BasketItemDetail(BaseModel):
+    """Individual item line calculation for a specific store."""
+
+    product_id: uuid.UUID
+    product_name: str
+    quantity: Decimal
+    unit_price: Decimal
+    subtotal: Decimal
+    is_promotional: bool
+
+
+class MissingItemDetail(BaseModel):
+    """Missing or out-of-stock item warning for a specific store."""
+
+    product_id: uuid.UUID
+    product_name: str
+    quantity: Decimal
+
+
+class StoreBasketTotal(BaseModel):
+    """Total basket cost calculation for a single store location."""
+
+    store_id: uuid.UUID
+    store_name: str
+    branch_code: Optional[str] = None
+    retailer_name: str
+    total_price: Decimal
+    is_complete_match: bool
+    items_available_count: int
+    total_items_count: int
+    items: List[BasketItemDetail]
+    missing_items: List[MissingItemDetail]
+
+
+class SplitStoreAllocation(BaseModel):
+    """Assigned items and subtotal for a store participating in a split."""
+
+    store_id: uuid.UUID
+    store_name: str
+    retailer_name: str
+    items: List[BasketItemDetail]
+    subtotal: Decimal
+
+
+class OptimalSplitResult(BaseModel):
+    """Smart Mode multi-store split optimization results."""
+
+    stores: List[SplitStoreAllocation]
+    total_price: Decimal
+    savings_amount: Decimal
+    savings_percentage: Decimal
+    is_complete_match: bool
+    cheaper_than_single_store: bool
+
+
+class BasketCalculationResponse(BaseModel):
+    """Response payload for multi-store basket evaluation and optimization."""
+
+    ranked_stores: List[StoreBasketTotal]
+    cheapest_single_store: Optional[StoreBasketTotal] = None
+    optimal_split: Optional[OptimalSplitResult] = None
+    total_items_requested: int
+
+
 class ErrorResponse(BaseModel):
     """Standard error response payload."""
 

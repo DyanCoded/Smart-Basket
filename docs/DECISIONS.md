@@ -280,3 +280,26 @@ Collaborative household grocery management requires instantaneous synchronizatio
 ### Consequences & Trade-offs
 - **Positive:** Sub-10ms event dissemination to all active household clients; zero-friction buyer alerts; decoupled background notification execution.
 - **Negative / Mitigations:** Active WebSocket connections require continuous network state tracking; mitigated through heartbeat pings (`ping`/`pong`) and clean connection teardown in finally blocks.
+
+---
+
+## ADR-010: Mobile Expo SDK 53 Client Migration, SQLite Offline Queue & SmartBasket View
+
+### Status
+**Accepted** (2026-11-19)
+
+### Context & Problem Statement
+To unify the KitchenSync mobile experience with the SmartBasket price optimization engine in a single monorepo, the Expo SDK 53 (`GroceryApp`) codebase must reside under `mobile/` and communicate directly with the FastAPI v1 REST and WebSocket endpoints. Mobile users frequently interact with pantry inventory in areas with poor connectivity, requiring local SQLite queuing (`react-native-sqlite-storage`) that seamlessly reconciles with `POST /api/v1/homes/{home_id}/pantry/sync` and feeds `POST /api/v1/baskets/calculate`.
+
+### Decision & Technical Rationale
+- **Monorepo Mobile Structure (`mobile/`):**
+  - Migrated `kitchenSync-fe/GroceryApp` into `mobile/` with three dedicated domain layers:
+    - `mobile/types/`: Strict TypeScript interfaces mirroring FastAPI Pydantic schemas (`PantryItemResponse`, `PantrySyncRequest`, `BasketCalculationResponse`, `WebSocketEventPayload`).
+    - `mobile/db/`: Local SQLite persistence (`react-native-sqlite-storage`) managing `local_pantry_items`, `pending_sync` mutation queue, and `sync_meta` (`last_synced_at`), with an automatic in-memory fallback for Web and headless test environments.
+    - `mobile/services/`: Unified FastAPI client (`api.ts`), offline-to-online sync & basket bridge (`sync.ts`), and real-time Redis Pub/Sub WebSocket stream (`websocket.ts`).
+- **CI Quality Gates (`.github/workflows/ci.yml`):**
+  - Added Node.js 20 setup, `npm ci`, TypeScript verification (`npm run typecheck` / `tsc --noEmit`), and ESLint checks (`npm run lint`) to the GitHub Actions pipeline.
+
+### Consequences & Trade-offs
+- **Positive:** End-to-end type safety across Python Pydantic schemas and TypeScript interfaces; offline-first resilience via SQLite `pending_sync`; single-tap price comparison for depleted pantry items.
+- **Negative / Mitigations:** Monorepo CI execution time increases slightly with Node.js checks; mitigated via `actions/setup-node` npm dependency caching on `mobile/package-lock.json`.

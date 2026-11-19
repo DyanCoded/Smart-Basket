@@ -252,6 +252,7 @@ This project is engineered iteratively following a structured backlog pipeline:
 | **15. Auth & Access** | `[Backend]` JWT Auth & Household Membership Endpoints | 🟢 Completed | [#15](https://github.com/DyanCoded/Smart-Basket/issues/15) · [`src/api/v1/auth.py`](src/api/v1/auth.py) |
 | **16. Pantry Sync** | `[Backend]` Implement pantry CRUD, offline delta-sync & auto-basket bridge | 🟢 Completed | [#16](https://github.com/DyanCoded/Smart-Basket/issues/16) · [`src/api/v1/pantry.py`](src/api/v1/pantry.py) |
 | **17. Real-Time Stream** | `[Backend]` Add Redis Pub/Sub WebSocket stream & buyer push alerts | 🟢 Completed | [#17](https://github.com/DyanCoded/Smart-Basket/issues/17) · [`src/services/pubsub_service.py`](src/services/pubsub_service.py) |
+| **18. Mobile Client** | `[Mobile]` Import Expo app into `mobile/` & wire SmartBasket + Pantry APIs | 🟢 Completed | [#18](https://github.com/DyanCoded/Smart-Basket/issues/18) · [`mobile/`](mobile/) |
 
 ---
 

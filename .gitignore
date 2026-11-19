@@ -41,6 +41,13 @@ Thumbs.db
 # Docker volumes / local data
 pgdata/
 
+# Mobile (Expo / React Native) dependencies & build caches
+node_modules/
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+
 # Local AI assistant instructions
 AI_GUARDRAILS.md
 GEMINI.md

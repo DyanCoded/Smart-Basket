@@ -20,11 +20,30 @@ def test_readme_completeness() -> None:
     assert "flowchart TD" in content
 
     # Quickstart instructions
-    assert "docker compose up -d" in content
+    assert "docker-compose up -d" in content
     assert "alembic upgrade head" in content
-    assert "python scripts/seed.py --verify" in content
+    assert "python scripts/seed.py" in content
+    assert "pytest" in content
     assert "python scripts/check.py" in content
     assert "uvicorn src.main:app" in content
+
+    # Documentation links
+    assert "/docs" in content
+    assert "docs/openapi.json" in content
+
+    # Retrospective and chain-level price tracking
+    assert "Checkers" in content
+    assert "Woolworths Food" in content
+    assert "Pick n Pay" in content
+    assert "SPAR" in content
+    assert "Shoprite" in content
+
+    # Phase 2 KitchenSync integration
+    assert "KitchenSync" in content
+    assert "React Native" in content
+    assert "Expo" in content
+    assert "Redis Pub/Sub" in content
+    assert "JWT" in content
 
     # All 12 milestones marked as Completed
     for milestone_num in range(1, 13):
@@ -67,6 +86,7 @@ def test_academic_retrospective_documentation() -> None:
 
     # Verify Phase 2 Roadmap
     assert "Phase 2 Roadmap" in content
+    assert "KitchenSync" in content
     assert "Distributed Scraping" in content
     assert "Redis" in content
     assert "PostGIS" in content

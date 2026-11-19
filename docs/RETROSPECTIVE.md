@@ -266,33 +266,40 @@ Benchmarked using Python `time.perf_counter()` over 1,000 iterations:
 2. **Synchronous Ingestion:** Pricing updates currently execute synchronously via database transactions rather than an asynchronous event queue.
 3. **No External Authentication:** Focus remained strictly on core algorithms and data integrity; multi-tenant user accounts were deferred to Phase 2.
 
-### Phase 2 Roadmap
+### Phase 2 Roadmap: KitchenSync Integration & Ecosystem Expansion
 ```mermaid
 flowchart LR
-    subgraph P2_1["1. Ingestion"]
-        Scrapers["Distributed Web Scrapers<br>(Playwright / Scrapy)"]
-        Queue["RabbitMQ / Celery Queue"]
+    subgraph P2_1["1. KitchenSync Mobile (React Native / Expo)"]
+        Scanner["Camera Barcode Scanner"]
+        PantryUI["Household Pantry Tracking"]
+        AutoList["Auto-Replenished Basket"]
     end
 
-    subgraph P2_2["2. Performance"]
-        RedisCache["Redis Caching Layer<br>(Hot Items & Search TTL)"]
-        PostGIS["PostGIS Geo Extension<br>(Store Distance Filtering)"]
+    subgraph P2_2["2. Real-Time Household Backend"]
+        JWTAuth["JWT Auth & Household RBAC"]
+        PubSub["Redis Pub/Sub Household Sync"]
+        PantryBridge["Pantry-to-SmartBasket Bridge"]
     end
 
-    subgraph P2_3["3. Client Apps"]
-        MobileApp["React Native Mobile App<br>(Camera Barcode Scanner)"]
-        WebPWA["Next.js Web PWA<br>(Shopping List Sync)"]
+    subgraph P2_3["3. Optimization & Ingestion"]
+        OptEngine["Smart Basket Split Optimizer"]
+        Scrapers["Distributed Supermarket Scrapers"]
+        PostGIS["PostGIS Store Geo Filtering"]
     end
 
-    Scrapers --> Queue
-    Queue --> RedisCache
-    RedisCache --> PostGIS
-    PostGIS --> MobileApp
-    PostGIS --> WebPWA
+    Scanner --> PantryUI
+    PantryUI <-->|WebSocket| PubSub
+    PantryUI --> AutoList
+    AutoList --> PantryBridge
+    JWTAuth --> PantryBridge
+    PantryBridge --> OptEngine
+    Scrapers --> OptEngine
+    PostGIS --> OptEngine
 ```
 
-1. **Distributed Scraping Workers:** Deploy automated headless browser scrapers (Playwright) feeding an event queue (Celery/Redis) for daily supermarket price syncs.
-2. **Redis Caching Layer:** Cache frequent product searches and popular basket combinations with a 5-minute TTL.
-3. **Geospatial Branch Filtering (PostGIS):** Allow users to supply GPS coordinates or postal codes to limit basket comparisons to stores within a 10 km driving radius.
-4. **Mobile Client (React Native):** Native mobile app featuring in-store barcode scanning for instant multi-store price checks in supermarket aisles.
-5. **Persistent User Accounts:** User authentication (OAuth2 / JWT) enabling shoppers to save favorite baskets, track price alerts, and receive notifications when prices drop.
+1. **KitchenSync Household & Pantry Port:** Port KitchenSync's household and pantry models into our FastAPI/PostgreSQL architecture, enabling collaborative household inventory tracking.
+2. **JWT Authentication & Access Control:** Multi-tenant household accounts with role-based access control and invitation links.
+3. **Redis Pub/Sub Real-Time Synchronization:** WebSockets backed by Redis Pub/Sub ensuring instant pantry state updates across all household devices.
+4. **Automated Pantry-to-Basket Replenishment:** Automatic threshold-based population of Smart Basket shopping lists from low-stock pantry items, enabling instant multi-store price optimization.
+5. **Cross-Platform React Native (Expo) Mobile App:** Native mobile client featuring in-aisle camera barcode scanning for instant multi-store price comparison and pantry logging.
+6. **Distributed Scraping & PostGIS Distance Filtering:** Headless browser workers (Playwright) and geospatial queries to filter comparisons to branches within user travel radius.

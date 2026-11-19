@@ -204,6 +204,11 @@ class Basket(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    home_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("homes.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     name: Mapped[str] = mapped_column(
         String(150), default="My Shopping Basket", nullable=False
     )
@@ -213,6 +218,7 @@ class Basket(Base):
         nullable=False,
     )
 
+    home: Mapped[Optional["Home"]] = relationship("Home", back_populates="baskets")
     items: Mapped[List["BasketItem"]] = relationship(
         "BasketItem", back_populates="basket", cascade="all, delete-orphan"
     )
@@ -244,4 +250,189 @@ class BasketItem(Base):
     __table_args__ = (
         UniqueConstraint("basket_id", "product_id", name="uq_basket_product"),
         CheckConstraint("quantity > 0", name="chk_positive_quantity"),
+    )
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    memberships: Mapped[List["Membership"]] = relationship(
+        "Membership", back_populates="user", cascade="all, delete-orphan"
+    )
+    pantry_logs: Mapped[List["PantryLog"]] = relationship(
+        "PantryLog", back_populates="user"
+    )
+
+    __table_args__ = (
+        Index("ix_users_username", "username"),
+        Index("ix_users_email", "email"),
+    )
+
+
+class Home(Base):
+    __tablename__ = "homes"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    memberships: Mapped[List["Membership"]] = relationship(
+        "Membership", back_populates="home", cascade="all, delete-orphan"
+    )
+    pantry_items: Mapped[List["PantryItem"]] = relationship(
+        "PantryItem", back_populates="home", cascade="all, delete-orphan"
+    )
+    baskets: Mapped[List["Basket"]] = relationship("Basket", back_populates="home")
+
+
+class Membership(Base):
+    __tablename__ = "memberships"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    home_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("homes.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    role: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # 'buyer' | 'consumer'
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship("User", back_populates="memberships")
+    home: Mapped["Home"] = relationship("Home", back_populates="memberships")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "home_id", name="uq_membership_user_home"),
+        CheckConstraint("role IN ('buyer', 'consumer')", name="chk_membership_role"),
+        Index("ix_memberships_user_home", "user_id", "home_id"),
+    )
+
+
+class PantryItem(Base):
+    __tablename__ = "pantry_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    home_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("homes.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    product_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("products.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    category_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("categories.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    custom_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    barcode: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    quantity: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), default=Decimal("0.00"), nullable=False
+    )
+    unit_type: Mapped[str] = mapped_column(String(20), default="unit", nullable=False)
+    low_stock_threshold: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), default=Decimal("1.00"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), default="ok", nullable=False
+    )  # 'ok' | 'low' | 'finished'
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    home: Mapped["Home"] = relationship("Home", back_populates="pantry_items")
+    product: Mapped[Optional["Product"]] = relationship("Product")
+    category: Mapped[Optional["Category"]] = relationship("Category")
+    logs: Mapped[List["PantryLog"]] = relationship(
+        "PantryLog", back_populates="item", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('ok', 'low', 'finished')", name="chk_pantry_item_status"
+        ),
+        CheckConstraint("quantity >= 0", name="chk_positive_pantry_quantity"),
+        CheckConstraint(
+            "low_stock_threshold >= 0", name="chk_positive_low_stock_threshold"
+        ),
+        Index("ix_pantry_items_home_id", "home_id"),
+        Index("ix_pantry_items_status", "status"),
+        Index("ix_pantry_items_barcode", "barcode"),
+    )
+
+
+class PantryLog(Base):
+    __tablename__ = "pantry_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("pantry_items.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    action: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # 'marked_low' | 'marked_finished' | 'restocked' | 'updated'
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    item: Mapped["PantryItem"] = relationship("PantryItem", back_populates="logs")
+    user: Mapped[Optional["User"]] = relationship("User", back_populates="pantry_logs")
+
+    __table_args__ = (
+        CheckConstraint(
+            "action IN ('marked_low', 'marked_finished', 'restocked', 'updated')",
+            name="chk_pantry_log_action",
+        ),
+        Index("ix_pantry_logs_item_timestamp", "item_id", "timestamp"),
     )

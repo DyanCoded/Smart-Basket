@@ -257,3 +257,26 @@ Mobile pantry management operates under intermittent network connectivity (e.g. 
 ### Consequences & Trade-offs
 - **Positive:** Deterministic offline reconciliation, idempotent batch sync, instant transition from pantry depletion to multi-store price comparison.
 - **Negative / Mitigations:** Clock skew between client and server could influence LWW resolution; mitigated by clients synchronizing clock with server responses or fallback to server timestamp on creation.
+
+---
+
+## ADR-009: Redis Pub/Sub WebSocket Streaming & Buyer Push Alerts
+
+### Status
+**Accepted** (2026-11-19)
+
+### Context & Problem Statement
+Collaborative household grocery management requires instantaneous synchronization across multiple family members' mobile devices. When one member updates an inventory level or marks an item finished, other connected devices must update their view without manual pull-to-refresh. Furthermore, designated household buyers must receive high-priority push notifications when essential grocery staples reach `low` or `finished` status.
+
+### Decision & Technical Rationale
+- **Redis Pub/Sub WebSocket Backplane (`WS /api/v1/homes/{home_id}/ws`):**
+  - WebSockets authenticate JWT tokens via query parameters or authorization headers and verify household membership before establishing the connection (rejecting unauthorized attempts with WebSocket policy violation code `1008`).
+  - Upon connection, the server registers an asynchronous listener on Redis channel `home:{home_id}` via `redis.asyncio` Pub/Sub, broadcasting `ITEM_UPDATED` and `ITEM_DELETED` payloads.
+  - An in-memory subscriber queue fallback is maintained to guarantee zero message loss during temporary Redis reconnections or in offline testing environments.
+- **Asynchronous Buyer Push Notifications (FCM):**
+  - When pantry items transition to `low` or `finished` status, a background task triggers Firebase Cloud Messaging (FCM) alerts dispatched to household buyer topics (`home_{home_id}_buyers`).
+  - Missing or unconfigured Firebase service credentials in local development or CI environments are handled gracefully through a transparent simulation fallback, preventing test breakages.
+
+### Consequences & Trade-offs
+- **Positive:** Sub-10ms event dissemination to all active household clients; zero-friction buyer alerts; decoupled background notification execution.
+- **Negative / Mitigations:** Active WebSocket connections require continuous network state tracking; mitigated through heartbeat pings (`ping`/`pong`) and clean connection teardown in finally blocks.

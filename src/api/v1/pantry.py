@@ -2,10 +2,22 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import uuid
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, status
+import redis.asyncio as aioredis
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.api.v1.schemas import (
@@ -23,9 +35,15 @@ from src.api.v1.schemas import (
     PantrySyncRequest,
     PantrySyncResponse,
 )
+from src.core.config import REDIS_URL
 from src.core.database import get_db
-from src.core.security import get_current_user, verify_home_membership
+from src.core.security import (
+    decode_access_token,
+    get_current_user,
+    verify_home_membership,
+)
 from src.models.entities import Membership, PantryItem, User
+from src.services.notification_service import notify_buyers_item_depleted
 from src.services.pantry_service import (
     create_pantry_item,
     delete_pantry_item,
@@ -35,6 +53,14 @@ from src.services.pantry_service import (
     sync_pantry_mutations,
     update_pantry_item,
 )
+from src.services.pubsub_service import (
+    EVENT_CONNECTED,
+    get_home_channel,
+    register_in_memory_listener,
+    unregister_in_memory_listener,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/homes/{home_id}", tags=["pantry"])
 
@@ -57,6 +83,178 @@ def _serialize_pantry_item(item: PantryItem) -> PantryItemResponse:
         product_name=item.product.name if item.product else None,
         category_name=item.category.name if item.category else None,
     )
+
+
+def _get_household_buyer_emails(session: Session, home_id: uuid.UUID) -> List[str]:
+    """Retrieve emails of all buyer members in the household."""
+    stmt = (
+        select(User.email)
+        .join(Membership, Membership.user_id == User.id)
+        .where(
+            Membership.home_id == home_id,
+            Membership.role == "buyer",
+        )
+    )
+    return [email for email in session.scalars(stmt).all()]
+
+
+@router.websocket("/ws")
+async def household_websocket_endpoint(
+    websocket: WebSocket,
+    home_id: uuid.UUID,
+    token: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+) -> None:
+    """WebSocket stream for real-time pantry updates backed by Redis Pub/Sub."""
+    # 1. Extract authentication token
+    auth_token = token
+    if not auth_token:
+        auth_header = websocket.headers.get("authorization")
+        if auth_header and auth_header.lower().startswith("bearer "):
+            auth_token = auth_header[7:].strip()
+        elif auth_header:
+            auth_token = auth_header.strip()
+    if not auth_token:
+        protocol_header = websocket.headers.get("sec-websocket-protocol")
+        if protocol_header:
+            auth_token = protocol_header.strip()
+
+    if not auth_token:
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION,
+            reason="Missing authentication token",
+        )
+        return
+
+    # 2. Decode and validate JWT
+    try:
+        token_payload = decode_access_token(auth_token)
+        user_id_str = token_payload.get("sub")
+        if not user_id_str:
+            raise ValueError("Token missing user subject")
+        user_id = uuid.UUID(user_id_str)
+    except Exception:
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION,
+            reason="Invalid authentication token",
+        )
+        return
+
+    # 3. Verify user and household membership
+    user = db.scalar(select(User).where(User.id == user_id))
+    if not user:
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION,
+            reason="User not found",
+        )
+        return
+
+    membership = db.scalar(
+        select(Membership).where(
+            Membership.home_id == home_id,
+            Membership.user_id == user_id,
+        )
+    )
+    if not membership:
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION,
+            reason="Forbidden: Not a member of this household",
+        )
+        return
+
+    # 4. Accept connection and acknowledge handshake
+    await websocket.accept()
+    await websocket.send_json(
+        {
+            "event": EVENT_CONNECTED,
+            "home_id": str(home_id),
+            "user_id": str(user_id),
+            "role": membership.role,
+        }
+    )
+
+    # 5. Connect to Redis Pub/Sub channel
+    channel = get_home_channel(home_id)
+    in_memory_queue = register_in_memory_listener(channel)
+
+    redis_client = None
+    pubsub = None
+    try:
+        redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
+        pubsub = redis_client.pubsub()
+        await pubsub.subscribe(channel)
+    except Exception as exc:
+        logger.warning(
+            "Redis async Pub/Sub connection failed for %s: %s (using fallback)",
+            channel,
+            exc,
+        )
+        pubsub = None
+
+    # 6. Concurrently forward pubsub messages and monitor client lifecycle
+    async def forward_events() -> None:
+        try:
+            while True:
+                # Deliver any in-memory queued messages
+                try:
+                    queued_msg = in_memory_queue.get_nowait()
+                    await websocket.send_text(queued_msg)
+                    continue
+                except asyncio.QueueEmpty:
+                    pass
+
+                # Deliver any Redis pubsub messages
+                if pubsub is not None:
+                    try:
+                        msg = await pubsub.get_message(
+                            ignore_subscribe_messages=True, timeout=0.05
+                        )
+                        if msg and msg.get("type") == "message":
+                            await websocket.send_text(msg["data"])
+                            continue
+                    except Exception:
+                        pass
+
+                await asyncio.sleep(0.02)
+        except (asyncio.CancelledError, WebSocketDisconnect):
+            pass
+        except Exception as e:
+            logger.debug("WebSocket forwarder terminated: %s", e)
+
+    async def client_receiver() -> None:
+        try:
+            while True:
+                text = await websocket.receive_text()
+                if text == "ping":
+                    await websocket.send_text("pong")
+        except (asyncio.CancelledError, WebSocketDisconnect):
+            pass
+        except Exception as e:
+            logger.debug("WebSocket receiver terminated: %s", e)
+
+    forward_task = asyncio.create_task(forward_events())
+    recv_task = asyncio.create_task(client_receiver())
+
+    try:
+        done, pending = await asyncio.wait(
+            [forward_task, recv_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for task in pending:
+            task.cancel()
+    finally:
+        unregister_in_memory_listener(channel, in_memory_queue)
+        if pubsub is not None:
+            try:
+                await pubsub.unsubscribe(channel)
+                await pubsub.aclose()
+            except Exception:
+                pass
+        if redis_client is not None:
+            try:
+                await redis_client.aclose()
+            except Exception:
+                pass
 
 
 @router.get(
@@ -129,6 +327,7 @@ def list_pantry_items(
 def add_pantry_item(
     home_id: uuid.UUID,
     payload: PantryItemCreateRequest,
+    background_tasks: BackgroundTasks,
     membership: Membership = Depends(verify_home_membership),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -140,6 +339,17 @@ def add_pantry_item(
         user_id=current_user.id,
         data=payload,
     )
+    if item.status in ("low", "finished"):
+        buyer_emails = _get_household_buyer_emails(db, home_id)
+        background_tasks.add_task(
+            notify_buyers_item_depleted,
+            home_id=home_id,
+            item_name=item.custom_name
+            or (item.product.name if item.product else "Pantry Item"),
+            status=item.status,
+            quantity=str(item.quantity),
+            buyer_emails=buyer_emails,
+        )
     return _serialize_pantry_item(item)
 
 
@@ -188,6 +398,7 @@ def patch_pantry_item(
     home_id: uuid.UUID,
     item_id: uuid.UUID,
     payload: PantryItemUpdateRequest,
+    background_tasks: BackgroundTasks,
     membership: Membership = Depends(verify_home_membership),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -200,6 +411,17 @@ def patch_pantry_item(
         user_id=current_user.id,
         data=payload,
     )
+    if item.status in ("low", "finished"):
+        buyer_emails = _get_household_buyer_emails(db, home_id)
+        background_tasks.add_task(
+            notify_buyers_item_depleted,
+            home_id=home_id,
+            item_name=item.custom_name
+            or (item.product.name if item.product else "Pantry Item"),
+            status=item.status,
+            quantity=str(item.quantity),
+            buyer_emails=buyer_emails,
+        )
     return _serialize_pantry_item(item)
 
 
@@ -254,6 +476,7 @@ def remove_pantry_item(
 def sync_pantry(
     home_id: uuid.UUID,
     payload: PantrySyncRequest,
+    background_tasks: BackgroundTasks,
     membership: Membership = Depends(verify_home_membership),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -266,6 +489,20 @@ def sync_pantry(
         last_synced_at=payload.last_synced_at,
         mutations=payload.mutations,
     )
+    buyer_emails = None
+    for d in deltas:
+        if d.status in ("low", "finished") and not d.is_deleted:
+            if buyer_emails is None:
+                buyer_emails = _get_household_buyer_emails(db, home_id)
+            background_tasks.add_task(
+                notify_buyers_item_depleted,
+                home_id=home_id,
+                item_name=d.custom_name
+                or (d.product.name if d.product else "Pantry Item"),
+                status=d.status,
+                quantity=str(d.quantity),
+                buyer_emails=buyer_emails,
+            )
     return PantrySyncResponse(
         synced_at=synced_at,
         items=[_serialize_pantry_item(d) for d in deltas],

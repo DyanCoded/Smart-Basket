@@ -17,6 +17,31 @@ from src.api.v1.schemas import (
     PantrySyncMutation,
 )
 from src.models.entities import Basket, BasketItem, PantryItem, PantryLog, Product
+from src.services.pubsub_service import (
+    EVENT_ITEM_DELETED,
+    EVENT_ITEM_UPDATED,
+    publish_pantry_event,
+)
+
+
+def serialize_pantry_item_dict(item: PantryItem) -> dict:
+    """Format PantryItem into JSON-serializable dictionary for event broadcasts."""
+    return {
+        "id": str(item.id),
+        "home_id": str(item.home_id),
+        "product_id": str(item.product_id) if item.product_id else None,
+        "category_id": str(item.category_id) if item.category_id else None,
+        "custom_name": item.custom_name,
+        "barcode": item.barcode,
+        "quantity": str(item.quantity),
+        "unit_type": item.unit_type,
+        "low_stock_threshold": str(item.low_stock_threshold),
+        "status": item.status,
+        "is_deleted": item.is_deleted,
+        "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+        "product_name": item.product.name if item.product else None,
+        "category_name": item.category.name if item.category else None,
+    }
 
 
 def auto_replenish_basket_item(
@@ -253,6 +278,11 @@ def create_pantry_item(
 
     session.commit()
     session.refresh(item)
+    publish_pantry_event(
+        home_id=home_id,
+        event_type=EVENT_ITEM_UPDATED,
+        data=serialize_pantry_item_dict(item),
+    )
     return item
 
 
@@ -335,6 +365,11 @@ def update_pantry_item(
 
     session.commit()
     session.refresh(item)
+    publish_pantry_event(
+        home_id=home_id,
+        event_type=EVENT_ITEM_UPDATED,
+        data=serialize_pantry_item_dict(item),
+    )
     return item
 
 
@@ -367,6 +402,16 @@ def delete_pantry_item(
     )
     session.add(log)
     session.commit()
+    publish_pantry_event(
+        home_id=home_id,
+        event_type=EVENT_ITEM_DELETED,
+        data={
+            "id": str(item.id),
+            "home_id": str(home_id),
+            "is_deleted": True,
+            "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+        },
+    )
 
 
 def sync_pantry_mutations(
@@ -533,6 +578,29 @@ def sync_pantry_mutations(
 
     delta_stmt = delta_stmt.order_by(PantryItem.updated_at.asc())
     deltas = session.scalars(delta_stmt).unique().all()
+
+    # Broadcast deltas via Redis Pub/Sub
+    for d_item in deltas:
+        if d_item.is_deleted:
+            publish_pantry_event(
+                home_id=home_id,
+                event_type=EVENT_ITEM_DELETED,
+                data={
+                    "id": str(d_item.id),
+                    "home_id": str(home_id),
+                    "is_deleted": True,
+                    "updated_at": (
+                        d_item.updated_at.isoformat() if d_item.updated_at else None
+                    ),
+                },
+            )
+        else:
+            publish_pantry_event(
+                home_id=home_id,
+                event_type=EVENT_ITEM_UPDATED,
+                data=serialize_pantry_item_dict(d_item),
+            )
+
     return synced_at, deltas, applied_count
 
 

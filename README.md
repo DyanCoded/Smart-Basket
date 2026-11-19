@@ -251,6 +251,7 @@ This project is engineered iteratively following a structured backlog pipeline:
 | **14. Data Layer** | `[Data]` Physical Database Schema & Migration for Pantry & Households | 🟢 Completed | [#14](https://github.com/DyanCoded/Smart-Basket/issues/14) · [`migrations/`](migrations/) |
 | **15. Auth & Access** | `[Backend]` JWT Auth & Household Membership Endpoints | 🟢 Completed | [#15](https://github.com/DyanCoded/Smart-Basket/issues/15) · [`src/api/v1/auth.py`](src/api/v1/auth.py) |
 | **16. Pantry Sync** | `[Backend]` Implement pantry CRUD, offline delta-sync & auto-basket bridge | 🟢 Completed | [#16](https://github.com/DyanCoded/Smart-Basket/issues/16) · [`src/api/v1/pantry.py`](src/api/v1/pantry.py) |
+| **17. Real-Time Stream** | `[Backend]` Add Redis Pub/Sub WebSocket stream & buyer push alerts | 🟢 Completed | [#17](https://github.com/DyanCoded/Smart-Basket/issues/17) · [`src/services/pubsub_service.py`](src/services/pubsub_service.py) |
 
 ---
 
@@ -332,6 +333,7 @@ python scripts/export_openapi.py
 | `DELETE`| `/api/v1/homes/{home_id}/pantry/{item_id}` | Soft-delete a pantry item with tombstone record |
 | `POST`| `/api/v1/homes/{home_id}/pantry/sync` | Offline delta sync: reconcile client mutations with LWW and return deltas |
 | `GET` | `/api/v1/homes/{home_id}/pantry/basket` | View the household's active auto-replenished Smart Basket |
+| `WS`  | `/api/v1/homes/{home_id}/ws` | Real-time WebSocket stream for pantry mutations backed by Redis Pub/Sub |
 
 ---
 

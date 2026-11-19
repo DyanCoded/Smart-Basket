@@ -488,6 +488,492 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/homes/{home_id}/pantry:
+    get:
+      tags:
+      - pantry
+      summary: List household pantry items
+      description: Retrieve household pantry inventory with search and category filtering.
+      operationId: list_pantry_items_api_v1_homes__home_id__pantry_get
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: home_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Home Id
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 'Filter by status: ''ok'', ''low'', ''finished'''
+          title: Status
+        description: 'Filter by status: ''ok'', ''low'', ''finished'''
+      - name: category_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          description: Filter by category UUID
+          title: Category Id
+        description: Filter by category UUID
+      - name: q
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Search by item name or barcode
+          title: Q
+        description: Search by item name or barcode
+      - name: include_deleted
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Include soft-deleted items
+          default: false
+          title: Include Deleted
+        description: Include soft-deleted items
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PantryItemResponse'
+                title: Response List Pantry Items Api V1 Homes  Home Id  Pantry Get
+        '401':
+          description: Unauthorized - invalid or expired credentials/token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - access denied for this household resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found - requested resource does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error occurred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - pantry
+      summary: Add an item to the household pantry
+      description: Add a catalog-linked or custom item to the household pantry. Marking
+        item low or finished auto-populates the household Smart Basket.
+      operationId: add_pantry_item_api_v1_homes__home_id__pantry_post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: home_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Home Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PantryItemCreateRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PantryItemResponse'
+        '200':
+          description: Item created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PantryItemResponse'
+        '400':
+          description: Bad Request - invalid query parameters or logical error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or expired credentials/token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - access denied for this household resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found - requested resource does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Unprocessable Content - validation error in parameters or payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error occurred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/homes/{home_id}/pantry/{item_id}:
+    get:
+      tags:
+      - pantry
+      summary: Get single pantry item details
+      description: Retrieve details and stock levels for a specific pantry item.
+      operationId: get_pantry_item_api_v1_homes__home_id__pantry__item_id__get
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: home_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Home Id
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Item Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PantryItemResponse'
+        '401':
+          description: Unauthorized - invalid or expired credentials/token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - access denied for this household resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found - requested resource does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error occurred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - pantry
+      summary: Update pantry item stock or status
+      description: Partially update pantry item stock or metadata. Transitioning to
+        'low' or 'finished' automatically triggers Smart Basket replenishment for
+        catalog products.
+      operationId: patch_pantry_item_api_v1_homes__home_id__pantry__item_id__patch
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: home_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Home Id
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Item Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PantryItemUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PantryItemResponse'
+        '400':
+          description: Bad Request - invalid query parameters or logical error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or expired credentials/token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - access denied for this household resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found - requested resource does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Unprocessable Content - validation error in parameters or payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error occurred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags:
+      - pantry
+      summary: Soft-delete a pantry item
+      description: Soft-delete an item from household inventory, leaving a tombstone
+        for offline sync.
+      operationId: remove_pantry_item_api_v1_homes__home_id__pantry__item_id__delete
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: home_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Home Id
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Item Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+                title: Response Remove Pantry Item Api V1 Homes  Home Id  Pantry  Item
+                  Id  Delete
+        '401':
+          description: Unauthorized - invalid or expired credentials/token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - access denied for this household resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found - requested resource does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error occurred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/homes/{home_id}/pantry/sync:
+    post:
+      tags:
+      - pantry
+      summary: Offline delta synchronization
+      description: Reconcile offline client mutations via last-write-wins conflict
+        resolution, record audit logs, auto-replenish Smart Baskets, and return all
+        server modifications since last_synced_at.
+      operationId: sync_pantry_api_v1_homes__home_id__pantry_sync_post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: home_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Home Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PantrySyncRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PantrySyncResponse'
+        '400':
+          description: Bad Request - invalid query parameters or logical error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or expired credentials/token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - access denied for this household resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Unprocessable Content - validation error in parameters or payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error occurred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/homes/{home_id}/basket:
+    get:
+      tags:
+      - pantry
+      summary: Get active household Smart Basket
+      description: Retrieve the active auto-replenished shopping basket containing
+        items flagged as low or finished in the household pantry.
+      operationId: get_home_basket_api_v1_homes__home_id__basket_get
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: home_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Home Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HouseholdBasketResponse'
+        '401':
+          description: Unauthorized - invalid or expired credentials/token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - access denied for this household resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found - requested resource does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error occurred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/products:
     get:
       tags:
@@ -1423,6 +1909,82 @@ components:
         member_count: 2
         name: Family Beach House
         role: buyer
+    HouseholdBasketItemResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+          description: Basket item record ID.
+        product_id:
+          type: string
+          format: uuid
+          title: Product Id
+          description: Catalog product ID.
+        product_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Name
+          description: Catalog product title.
+        quantity:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Quantity
+          description: Quantity to purchase.
+      type: object
+      required:
+      - id
+      - product_id
+      - quantity
+      title: HouseholdBasketItemResponse
+      description: Item inside the active household auto-replenished basket.
+      examples:
+      - id: 55555555-6666-7777-8888-999999999999
+        product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+        product_name: Full Cream Fresh Milk 2L
+        quantity: '1.00'
+    HouseholdBasketResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+          description: Basket ID.
+        home_id:
+          type: string
+          format: uuid
+          title: Home Id
+          description: Household ID.
+        name:
+          type: string
+          title: Name
+          description: Basket name.
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+          description: Creation timestamp.
+        items:
+          items:
+            $ref: '#/components/schemas/HouseholdBasketItemResponse'
+          type: array
+          title: Items
+          description: Replenishment shopping list.
+      type: object
+      required:
+      - id
+      - home_id
+      - name
+      - created_at
+      title: HouseholdBasketResponse
+      description: Household active shopping basket representation.
+      examples:
+      - created_at: '2026-11-19T14:30:00Z'
+        home_id: 33333333-4444-5555-6666-777777777777
+        id: 66666666-7777-8888-9999-000000000000
+        items: []
+        name: Household Smart Basket
     MembershipSummary:
       properties:
         id:
@@ -1556,6 +2118,411 @@ components:
           store_name: Pick n Pay Rosebank
           subtotal: '17.49'
         total_price: '91.47'
+    PantryItemCreateRequest:
+      properties:
+        product_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Product Id
+          description: Catalog product UUID if linked.
+        category_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Category Id
+          description: Category UUID.
+        custom_name:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Custom Name
+          description: Name of custom or artisanal item.
+        barcode:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Barcode
+          description: Scanned barcode.
+        quantity:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Quantity
+          description: Initial stock quantity.
+          default: '1.00'
+        unit_type:
+          type: string
+          maxLength: 20
+          title: Unit Type
+          description: Measurement unit.
+          default: unit
+        low_stock_threshold:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Low Stock Threshold
+          description: Threshold quantity below which item is marked low.
+          default: '1.00'
+        status:
+          type: string
+          title: Status
+          description: 'Stock status: ''ok'', ''low'', ''finished''.'
+          default: ok
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+          description: Optional log note for history.
+      type: object
+      title: PantryItemCreateRequest
+      description: Pantry item creation payload.
+      examples:
+      - barcode: '600100000001'
+        category_id: dcda34e0-efd6-5f43-b188-db739a0deab7
+        low_stock_threshold: 1.0
+        note: Initial pantry stock
+        product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+        quantity: 2.0
+        status: ok
+        unit_type: L
+    PantryItemResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+          description: Unique pantry item ID.
+        home_id:
+          type: string
+          format: uuid
+          title: Home Id
+          description: Household ID.
+        product_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Product Id
+          description: Catalog product ID if mapped.
+        category_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Category Id
+          description: Category classification ID.
+        custom_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Custom Name
+          description: Custom name for uncatalogued items.
+        barcode:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Barcode
+          description: Item barcode.
+        quantity:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Quantity
+          description: Current stock quantity.
+        unit_type:
+          type: string
+          title: Unit Type
+          description: Unit type (e.g. L, kg, unit).
+        low_stock_threshold:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Low Stock Threshold
+          description: Threshold quantity triggering low stock alert.
+        status:
+          type: string
+          title: Status
+          description: 'Stock status: ''ok'', ''low'', ''finished''.'
+        is_deleted:
+          type: boolean
+          title: Is Deleted
+          description: Soft-delete tombstone indicator.
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+          description: Last modification timestamp.
+        product_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Name
+          description: Linked catalog product title.
+        category_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Category Name
+          description: Category display title.
+      type: object
+      required:
+      - id
+      - home_id
+      - quantity
+      - unit_type
+      - low_stock_threshold
+      - status
+      - is_deleted
+      - updated_at
+      title: PantryItemResponse
+      description: Pantry inventory item response.
+      examples:
+      - barcode: '600100000001'
+        category_id: dcda34e0-efd6-5f43-b188-db739a0deab7
+        category_name: Dairy & Eggs
+        home_id: 33333333-4444-5555-6666-777777777777
+        id: 44444444-5555-6666-7777-888888888888
+        is_deleted: false
+        low_stock_threshold: '1.00'
+        product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+        product_name: Full Cream Fresh Milk 2L
+        quantity: '2.00'
+        status: ok
+        unit_type: L
+        updated_at: '2026-11-19T14:30:00Z'
+    PantryItemUpdateRequest:
+      properties:
+        quantity:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Quantity
+          description: New stock quantity.
+        unit_type:
+          anyOf:
+          - type: string
+            maxLength: 20
+          - type: 'null'
+          title: Unit Type
+          description: Measurement unit.
+        low_stock_threshold:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Low Stock Threshold
+          description: New threshold quantity.
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+          description: 'New status: ''ok'', ''low'', ''finished''.'
+        custom_name:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Custom Name
+          description: Updated custom name.
+        barcode:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Barcode
+          description: Updated barcode.
+        category_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Category Id
+          description: Updated category ID.
+        product_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Product Id
+          description: Updated linked product ID.
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+          description: Audit note describing modification.
+      type: object
+      title: PantryItemUpdateRequest
+      description: Pantry item modification payload.
+      examples:
+      - note: Opened second container
+        quantity: 0.5
+        status: low
+    PantrySyncMutation:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+          description: Client-side UUID of the pantry item.
+        product_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Product Id
+          description: Catalog product UUID if linked.
+        category_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Category Id
+          description: Category classification UUID.
+        custom_name:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Custom Name
+          description: Custom item title.
+        barcode:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Barcode
+          description: EAN-13 barcode.
+        quantity:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Quantity
+          description: Stock quantity.
+          default: '0.00'
+        unit_type:
+          type: string
+          maxLength: 20
+          title: Unit Type
+          description: Measurement unit.
+          default: unit
+        low_stock_threshold:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Low Stock Threshold
+          description: Threshold quantity.
+          default: '1.00'
+        status:
+          type: string
+          title: Status
+          description: 'Item status: ''ok'', ''low'', ''finished''.'
+          default: ok
+        is_deleted:
+          type: boolean
+          title: Is Deleted
+          description: True if item was deleted on client.
+          default: false
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+          description: Client-side timestamp of the mutation event.
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+          description: Optional note for audit trail.
+      type: object
+      required:
+      - id
+      - updated_at
+      title: PantrySyncMutation
+      description: Client-side pantry modification payload for offline sync reconciliation.
+      examples:
+      - id: 44444444-5555-6666-7777-888888888888
+        is_deleted: false
+        low_stock_threshold: 1.0
+        note: Finished last bottle while offline
+        product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+        quantity: 0.0
+        status: finished
+        unit_type: L
+        updated_at: '2026-11-19T14:35:00Z'
+    PantrySyncRequest:
+      properties:
+        last_synced_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Synced At
+          description: Timestamp of client's last successful sync.
+        mutations:
+          items:
+            $ref: '#/components/schemas/PantrySyncMutation'
+          type: array
+          title: Mutations
+          description: List of offline mutations to reconcile.
+      type: object
+      title: PantrySyncRequest
+      description: Offline delta synchronization request payload.
+      examples:
+      - last_synced_at: '2026-11-19T14:00:00Z'
+        mutations:
+        - id: 44444444-5555-6666-7777-888888888888
+          note: Marked low from pantry scanner
+          product_id: 6e2941e3-033d-5768-8143-5e7ebc24b874
+          quantity: 0.5
+          status: low
+          updated_at: '2026-11-19T14:35:00Z'
+    PantrySyncResponse:
+      properties:
+        synced_at:
+          type: string
+          format: date-time
+          title: Synced At
+          description: Server timestamp of this synchronization.
+        items:
+          items:
+            $ref: '#/components/schemas/PantryItemResponse'
+          type: array
+          title: Items
+          description: Server-side items updated since last_synced_at.
+        applied_mutations_count:
+          type: integer
+          title: Applied Mutations Count
+          description: Number of client mutations successfully applied.
+      type: object
+      required:
+      - synced_at
+      - items
+      - applied_mutations_count
+      title: PantrySyncResponse
+      description: Offline delta synchronization reconciliation response.
+      examples:
+      - applied_mutations_count: 1
+        items: []
+        synced_at: '2026-11-19T14:36:00Z'
     PriceHistoryPoint:
       properties:
         id:
@@ -2450,5 +3417,8 @@ tags:
   description: User registration, authentication, and JWT profile access.
 - name: homes
   description: Collaborative household spaces, pantry sharing, and role-based memberships.
+- name: pantry
+  description: Household pantry inventory tracking, offline SQLite delta-sync, and
+    automated SmartBasket replenishment.
 - name: health
   description: Service liveness and readiness monitoring endpoints.

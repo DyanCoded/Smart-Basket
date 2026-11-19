@@ -231,3 +231,29 @@ Smart Basket requires a single, unified architectural design that preserves our 
 - **Negative / Mitigations:**
   - Additional infrastructure dependency on Redis (mitigated by lightweight Alpine Docker container and CI service container).
   - WebSockets in FastAPI require connection lifecycle management (mitigated by Redis connection pool singletons and heartbeat pings).
+
+---
+
+## ADR-008: Offline Delta-Sync & Pantry-to-Basket Auto-Replenishment Engine
+
+### Status
+**Accepted** (2026-11-19)
+
+### Context & Problem Statement
+Mobile pantry management operates under intermittent network connectivity (e.g. kitchen pantries, basements, or remote grocery stores). The mobile client maintains an offline SQLite store and queues local mutations. When reconnected, the client must reconcile changes with the backend deterministically without race conditions or data loss. Additionally, when pantry items deplete (`low` or `finished`), the household shopping basket must be automatically replenished to enable instant price optimization across retail chains.
+
+### Decision & Technical Rationale
+- **Last-Write-Wins (LWW) Conflict Resolution on `updated_at`:**
+  - In `POST /api/v1/homes/{home_id}/pantry/sync`, incoming mutations provide client timestamps (`updated_at`).
+  - If an existing item's server timestamp is strictly newer (`server.updated_at > mutation.updated_at`), the server record wins and the client mutation is rejected with conflict telemetry.
+  - Otherwise, the mutation is applied and updated in the database.
+- **Tombstone-Based Soft Deletion (`is_deleted`):**
+  - Item deletions are recorded as soft deletes (`is_deleted = True`) with updated timestamps, ensuring sync responses include deleted items (`tombstones`) so offline clients can purge them locally.
+- **Auto-Basket Replenishment Hook:**
+  - When a pantry item transitions status to `low` or `finished` and references a valid catalog `product_id`, the system automatically upserts that product into the household's active Basket (`basket_items`).
+  - If the item already exists in the basket, its quantity is incremented by the depleted quantity (default 1.00); otherwise, a new item is inserted.
+  - Uncatalogued items (`product_id IS NULL`) are omitted from retail baskets but tracked in `pantry_logs`.
+
+### Consequences & Trade-offs
+- **Positive:** Deterministic offline reconciliation, idempotent batch sync, instant transition from pantry depletion to multi-store price comparison.
+- **Negative / Mitigations:** Clock skew between client and server could influence LWW resolution; mitigated by clients synchronizing clock with server responses or fallback to server timestamp on creation.

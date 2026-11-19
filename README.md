@@ -250,6 +250,7 @@ This project is engineered iteratively following a structured backlog pipeline:
 | **13. Architecture** | `[Arch]` KitchenSync Pantry Integration & Unified Schema ADR | 🟢 Completed | [#13](https://github.com/DyanCoded/Smart-Basket/issues/13) · [`DECISIONS.md`](docs/DECISIONS.md) |
 | **14. Data Layer** | `[Data]` Physical Database Schema & Migration for Pantry & Households | 🟢 Completed | [#14](https://github.com/DyanCoded/Smart-Basket/issues/14) · [`migrations/`](migrations/) |
 | **15. Auth & Access** | `[Backend]` JWT Auth & Household Membership Endpoints | 🟢 Completed | [#15](https://github.com/DyanCoded/Smart-Basket/issues/15) · [`src/api/v1/auth.py`](src/api/v1/auth.py) |
+| **16. Pantry Sync** | `[Backend]` Implement pantry CRUD, offline delta-sync & auto-basket bridge | 🟢 Completed | [#16](https://github.com/DyanCoded/Smart-Basket/issues/16) · [`src/api/v1/pantry.py`](src/api/v1/pantry.py) |
 
 ---
 
@@ -324,6 +325,13 @@ python scripts/export_openapi.py
 | `GET` | `/api/v1/homes/{id}` | Household details and full member roster (buyer/consumer) |
 | `POST`| `/api/v1/homes/{id}/members` | Invite and add a member with buyer or consumer role |
 | `DELETE`| `/api/v1/homes/{id}/members/{user_id}` | Remove a member from the household |
+| `GET` | `/api/v1/homes/{home_id}/pantry` | List household pantry inventory with category & stock status filters |
+| `POST`| `/api/v1/homes/{home_id}/pantry` | Create a new catalogued or custom pantry item with quantity |
+| `GET` | `/api/v1/homes/{home_id}/pantry/{item_id}` | Retrieve detailed pantry item and consumption audit log |
+| `PATCH`| `/api/v1/homes/{home_id}/pantry/{item_id}` | Update pantry item quantity/status (auto-bridges to basket when low/finished) |
+| `DELETE`| `/api/v1/homes/{home_id}/pantry/{item_id}` | Soft-delete a pantry item with tombstone record |
+| `POST`| `/api/v1/homes/{home_id}/pantry/sync` | Offline delta sync: reconcile client mutations with LWW and return deltas |
+| `GET` | `/api/v1/homes/{home_id}/pantry/basket` | View the household's active auto-replenished Smart Basket |
 
 ---
 

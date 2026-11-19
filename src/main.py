@@ -70,6 +70,13 @@ OPENAPI_TAGS = [
         ),
     },
     {
+        "name": "pantry",
+        "description": (
+            "Household pantry inventory tracking, offline SQLite delta-sync, "
+            "and automated SmartBasket replenishment."
+        ),
+    },
+    {
         "name": "health",
         "description": "Service liveness and readiness monitoring endpoints.",
     },

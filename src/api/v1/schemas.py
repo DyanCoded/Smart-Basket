@@ -1131,3 +1131,327 @@ class AddMemberRequest(BaseModel):
         default="consumer",
         description="Role to assign: 'buyer' or 'consumer'.",
     )
+
+
+# ==============================================================================
+# Pantry & Offline Sync Schemas (KitchenSync Phase 2)
+# ==============================================================================
+
+
+class PantryItemResponse(BaseModel):
+    """Pantry inventory item response."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "44444444-5555-6666-7777-888888888888",
+                    "home_id": "33333333-4444-5555-6666-777777777777",
+                    "product_id": "6e2941e3-033d-5768-8143-5e7ebc24b874",
+                    "category_id": "dcda34e0-efd6-5f43-b188-db739a0deab7",
+                    "custom_name": None,
+                    "barcode": "600100000001",
+                    "quantity": "2.00",
+                    "unit_type": "L",
+                    "low_stock_threshold": "1.00",
+                    "status": "ok",
+                    "is_deleted": False,
+                    "updated_at": "2026-11-19T14:30:00Z",
+                    "product_name": "Full Cream Fresh Milk 2L",
+                    "category_name": "Dairy & Eggs",
+                }
+            ]
+        },
+    )
+
+    id: uuid.UUID = Field(description="Unique pantry item ID.")
+    home_id: uuid.UUID = Field(description="Household ID.")
+    product_id: Optional[uuid.UUID] = Field(
+        default=None, description="Catalog product ID if mapped."
+    )
+    category_id: Optional[uuid.UUID] = Field(
+        default=None, description="Category classification ID."
+    )
+    custom_name: Optional[str] = Field(
+        default=None, description="Custom name for uncatalogued items."
+    )
+    barcode: Optional[str] = Field(default=None, description="Item barcode.")
+    quantity: Decimal = Field(description="Current stock quantity.")
+    unit_type: str = Field(description="Unit type (e.g. L, kg, unit).")
+    low_stock_threshold: Decimal = Field(
+        description="Threshold quantity triggering low stock alert."
+    )
+    status: str = Field(description="Stock status: 'ok', 'low', 'finished'.")
+    is_deleted: bool = Field(description="Soft-delete tombstone indicator.")
+    updated_at: datetime = Field(description="Last modification timestamp.")
+    product_name: Optional[str] = Field(
+        default=None, description="Linked catalog product title."
+    )
+    category_name: Optional[str] = Field(
+        default=None, description="Category display title."
+    )
+
+
+class PantryItemCreateRequest(BaseModel):
+    """Pantry item creation payload."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "product_id": "6e2941e3-033d-5768-8143-5e7ebc24b874",
+                    "category_id": "dcda34e0-efd6-5f43-b188-db739a0deab7",
+                    "custom_name": None,
+                    "barcode": "600100000001",
+                    "quantity": 2.0,
+                    "unit_type": "L",
+                    "low_stock_threshold": 1.0,
+                    "status": "ok",
+                    "note": "Initial pantry stock",
+                }
+            ]
+        }
+    )
+
+    product_id: Optional[uuid.UUID] = Field(
+        default=None, description="Catalog product UUID if linked."
+    )
+    category_id: Optional[uuid.UUID] = Field(default=None, description="Category UUID.")
+    custom_name: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        description="Name of custom or artisanal item.",
+    )
+    barcode: Optional[str] = Field(
+        default=None, max_length=64, description="Scanned barcode."
+    )
+    quantity: Decimal = Field(
+        default=Decimal("1.00"), ge=0, description="Initial stock quantity."
+    )
+    unit_type: str = Field(
+        default="unit", max_length=20, description="Measurement unit."
+    )
+    low_stock_threshold: Decimal = Field(
+        default=Decimal("1.00"),
+        ge=0,
+        description="Threshold quantity below which item is marked low.",
+    )
+    status: str = Field(
+        default="ok",
+        description="Stock status: 'ok', 'low', 'finished'.",
+    )
+    note: Optional[str] = Field(
+        default=None, description="Optional log note for history."
+    )
+
+
+class PantryItemUpdateRequest(BaseModel):
+    """Pantry item modification payload."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "quantity": 0.5,
+                    "status": "low",
+                    "note": "Opened second container",
+                }
+            ]
+        }
+    )
+
+    quantity: Optional[Decimal] = Field(
+        default=None, ge=0, description="New stock quantity."
+    )
+    unit_type: Optional[str] = Field(
+        default=None, max_length=20, description="Measurement unit."
+    )
+    low_stock_threshold: Optional[Decimal] = Field(
+        default=None, ge=0, description="New threshold quantity."
+    )
+    status: Optional[str] = Field(
+        default=None, description="New status: 'ok', 'low', 'finished'."
+    )
+    custom_name: Optional[str] = Field(
+        default=None, max_length=200, description="Updated custom name."
+    )
+    barcode: Optional[str] = Field(
+        default=None, max_length=64, description="Updated barcode."
+    )
+    category_id: Optional[uuid.UUID] = Field(
+        default=None, description="Updated category ID."
+    )
+    product_id: Optional[uuid.UUID] = Field(
+        default=None, description="Updated linked product ID."
+    )
+    note: Optional[str] = Field(
+        default=None, description="Audit note describing modification."
+    )
+
+
+class PantrySyncMutation(BaseModel):
+    """Client-side pantry modification payload for offline sync reconciliation."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "44444444-5555-6666-7777-888888888888",
+                    "product_id": "6e2941e3-033d-5768-8143-5e7ebc24b874",
+                    "custom_name": None,
+                    "quantity": 0.0,
+                    "unit_type": "L",
+                    "low_stock_threshold": 1.0,
+                    "status": "finished",
+                    "is_deleted": False,
+                    "updated_at": "2026-11-19T14:35:00Z",
+                    "note": "Finished last bottle while offline",
+                }
+            ]
+        }
+    )
+
+    id: uuid.UUID = Field(description="Client-side UUID of the pantry item.")
+    product_id: Optional[uuid.UUID] = Field(
+        default=None, description="Catalog product UUID if linked."
+    )
+    category_id: Optional[uuid.UUID] = Field(
+        default=None, description="Category classification UUID."
+    )
+    custom_name: Optional[str] = Field(
+        default=None, max_length=200, description="Custom item title."
+    )
+    barcode: Optional[str] = Field(
+        default=None, max_length=64, description="EAN-13 barcode."
+    )
+    quantity: Decimal = Field(
+        default=Decimal("0.00"), ge=0, description="Stock quantity."
+    )
+    unit_type: str = Field(
+        default="unit", max_length=20, description="Measurement unit."
+    )
+    low_stock_threshold: Decimal = Field(
+        default=Decimal("1.00"), ge=0, description="Threshold quantity."
+    )
+    status: str = Field(
+        default="ok", description="Item status: 'ok', 'low', 'finished'."
+    )
+    is_deleted: bool = Field(
+        default=False, description="True if item was deleted on client."
+    )
+    updated_at: datetime = Field(
+        description="Client-side timestamp of the mutation event."
+    )
+    note: Optional[str] = Field(
+        default=None, description="Optional note for audit trail."
+    )
+
+
+class PantrySyncRequest(BaseModel):
+    """Offline delta synchronization request payload."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "last_synced_at": "2026-11-19T14:00:00Z",
+                    "mutations": [
+                        {
+                            "id": "44444444-5555-6666-7777-888888888888",
+                            "product_id": "6e2941e3-033d-5768-8143-5e7ebc24b874",
+                            "status": "low",
+                            "quantity": 0.5,
+                            "updated_at": "2026-11-19T14:35:00Z",
+                            "note": "Marked low from pantry scanner",
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+
+    last_synced_at: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp of client's last successful sync.",
+    )
+    mutations: List[PantrySyncMutation] = Field(
+        default_factory=list,
+        description="List of offline mutations to reconcile.",
+    )
+
+
+class PantrySyncResponse(BaseModel):
+    """Offline delta synchronization reconciliation response."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "synced_at": "2026-11-19T14:36:00Z",
+                    "items": [],
+                    "applied_mutations_count": 1,
+                }
+            ]
+        }
+    )
+
+    synced_at: datetime = Field(description="Server timestamp of this synchronization.")
+    items: List[PantryItemResponse] = Field(
+        description="Server-side items updated since last_synced_at."
+    )
+    applied_mutations_count: int = Field(
+        description="Number of client mutations successfully applied."
+    )
+
+
+class HouseholdBasketItemResponse(BaseModel):
+    """Item inside the active household auto-replenished basket."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "55555555-6666-7777-8888-999999999999",
+                    "product_id": "6e2941e3-033d-5768-8143-5e7ebc24b874",
+                    "product_name": "Full Cream Fresh Milk 2L",
+                    "quantity": "1.00",
+                }
+            ]
+        },
+    )
+
+    id: uuid.UUID = Field(description="Basket item record ID.")
+    product_id: uuid.UUID = Field(description="Catalog product ID.")
+    product_name: Optional[str] = Field(
+        default=None, description="Catalog product title."
+    )
+    quantity: Decimal = Field(description="Quantity to purchase.")
+
+
+class HouseholdBasketResponse(BaseModel):
+    """Household active shopping basket representation."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "66666666-7777-8888-9999-000000000000",
+                    "home_id": "33333333-4444-5555-6666-777777777777",
+                    "name": "Household Smart Basket",
+                    "created_at": "2026-11-19T14:30:00Z",
+                    "items": [],
+                }
+            ]
+        },
+    )
+
+    id: uuid.UUID = Field(description="Basket ID.")
+    home_id: uuid.UUID = Field(description="Household ID.")
+    name: str = Field(description="Basket name.")
+    created_at: datetime = Field(description="Creation timestamp.")
+    items: List[HouseholdBasketItemResponse] = Field(
+        default_factory=list, description="Replenishment shopping list."
+    )

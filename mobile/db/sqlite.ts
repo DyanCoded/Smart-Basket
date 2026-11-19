@@ -6,6 +6,7 @@
  * where the native SQLite bridge is unavailable.
  */
 
+import { NativeModules, Platform } from 'react-native';
 import SQLite, { SQLiteDatabase } from 'react-native-sqlite-storage';
 
 import { PantryItemResponse, PantryStatus, PantrySyncMutation } from '@/types/api';
@@ -73,7 +74,12 @@ export async function initLocalDatabase(): Promise<SQLiteDatabase | null> {
   }
 
   try {
-    if (!SQLite || typeof SQLite.openDatabase !== 'function') {
+    if (
+      Platform.OS === 'web' ||
+      !NativeModules?.SQLite ||
+      !SQLite ||
+      typeof SQLite.openDatabase !== 'function'
+    ) {
       useInMemoryFallback = true;
       return null;
     }

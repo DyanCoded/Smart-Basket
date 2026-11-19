@@ -3,7 +3,11 @@ import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { getLocalPantryItems, upsertLocalPantryItem } from '@/db/sqlite';
+import {
+  enqueuePendingSync,
+  getLocalPantryItems,
+  upsertLocalPantryItem,
+} from '@/db/sqlite';
 import { getActiveHomeId, setActiveHomeId } from '@/services/api';
 import {
   recordOfflinePantryMutation,
@@ -15,6 +19,14 @@ import { HouseholdRealtimeStream } from '@/services/websocket';
 import { PantryItemResponse, PantryStatus } from '@/types/api';
 
 const DEFAULT_HOME_ID = '00000000-0000-4000-8000-000000000001';
+
+function generateUuidV4(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 
 const INITIAL_PANTRY_FIXTURES: PantryItemResponse[] = [
   {
@@ -84,6 +96,20 @@ export default function PantryScreen() {
     if (existing.length === 0) {
       for (const seedItem of INITIAL_PANTRY_FIXTURES) {
         await upsertLocalPantryItem(seedItem);
+        await enqueuePendingSync(homeId, {
+          id: seedItem.id,
+          product_id: seedItem.product_id,
+          category_id: seedItem.category_id,
+          custom_name: seedItem.custom_name,
+          barcode: seedItem.barcode,
+          quantity: seedItem.quantity,
+          unit_type: seedItem.unit_type,
+          low_stock_threshold: seedItem.low_stock_threshold,
+          status: seedItem.status,
+          updated_at: seedItem.updated_at,
+          is_deleted: false,
+          note: 'Initial household pantry seed',
+        });
       }
     }
 
@@ -132,7 +158,7 @@ export default function PantryScreen() {
     }
 
     setIsSyncing(true);
-    const newId = `custom-${Date.now()}`;
+    const newId = generateUuidV4();
     const summary = await recordOfflinePantryMutation(homeId, {
       id: newId,
       product_id: null,

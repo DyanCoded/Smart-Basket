@@ -125,6 +125,34 @@ export async function createHome(name: string): Promise<HomeDetailResponse> {
   return home;
 }
 
+export async function ensureAuthenticatedHousehold(
+  preferredHomeId: string
+): Promise<string> {
+  if (accessToken && activeHomeId) {
+    return activeHomeId;
+  }
+
+  const demoUsername = 'kitchensync_demo_buyer';
+  const demoEmail = 'demo_buyer@smartbasket.co.za';
+  const demoPassword = 'DemoBuyerPassword123!';
+
+  try {
+    await loginUser(demoEmail, demoPassword);
+  } catch {
+    await registerUser(demoUsername, demoEmail, demoPassword);
+    await loginUser(demoEmail, demoPassword);
+  }
+
+  const homes = await listHomes();
+  if (homes.length > 0) {
+    setActiveHomeId(homes[0].id);
+    return homes[0].id;
+  }
+
+  const created = await createHome('KitchenSync Family Home');
+  return created.id || preferredHomeId;
+}
+
 export async function fetchPantryItems(
   homeId: string,
   statusFilter?: string

@@ -17,6 +17,7 @@ import {
 } from '@/db/sqlite';
 import {
   calculateMultiStoreBasket,
+  ensureAuthenticatedHousehold,
   fetchHouseholdBasket,
   postPantryDeltaSync,
 } from '@/services/api';
@@ -100,14 +101,18 @@ export async function syncOfflineQueueToServer(
   const lastSyncedAt = await getLastSyncedAt(homeId);
 
   try {
-    const syncResponse: PantrySyncResponse = await postPantryDeltaSync(homeId, {
-      last_synced_at: lastSyncedAt,
-      mutations: pendingMutations,
-    });
+    const resolvedHomeId = await ensureAuthenticatedHousehold(homeId);
+    const syncResponse: PantrySyncResponse = await postPantryDeltaSync(
+      resolvedHomeId,
+      {
+        last_synced_at: lastSyncedAt,
+        mutations: pendingMutations,
+      }
+    );
 
     await applyServerDeltasToLocalDb(
       homeId,
-      syncResponse.items,
+      syncResponse.items.map((item) => ({ ...item, home_id: homeId })),
       syncResponse.synced_at
     );
 
@@ -158,7 +163,8 @@ export async function syncAndCalculateSmartBasket(
 
   if (syncResult.isOnline) {
     try {
-      basket = await fetchHouseholdBasket(homeId);
+      const resolvedHomeId = await ensureAuthenticatedHousehold(homeId);
+      basket = await fetchHouseholdBasket(resolvedHomeId);
       calcRequestItems = basket.items.map((bi) => ({
         product_id: bi.product_id,
         quantity: bi.quantity,

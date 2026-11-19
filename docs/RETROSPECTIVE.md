@@ -251,6 +251,7 @@ Benchmarked using Python `time.perf_counter()` over 1,000 iterations:
 | **ADR-004** | Primary Key Strategy | Deterministic UUIDv5 | Auto-increment `SERIAL` | Collision-free multi-store ingestion, offline client fixture reproducibility. |
 | **ADR-005** | Basket Optimization | Bounded 2-Store Split | Integer Linear Programming (ILP) | $O(B \cdot S)$ computational efficiency ensures instant consumer UI responses. |
 | **ADR-006** | CI / Code Quality | GitHub Actions + Ruff/Black | Flake8, Pylint, manual PRs | Sub-second static analysis and zero-warning enforcement on `main`. |
+| **ADR-007** | Pantry Integration & Sync | Redis 7 + Unified Schema | Django Monolith, Microservices | Unified FastAPI/Postgres architecture, Redis Pub/Sub WebSockets, and nullable product_id bridge. |
 
 ---
 

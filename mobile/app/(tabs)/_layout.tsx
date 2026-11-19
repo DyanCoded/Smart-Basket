@@ -16,7 +16,13 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
+        tabBarButton: (props) => (
+          <HapticTab
+            {...props}
+            pressColor={props.pressColor ? String(props.pressColor) : undefined}
+            hoverEffect={undefined}
+          />
+        ),
         tabBarBackground: TabBarBackground,
         tabBarStyle: Platform.select({
           ios: {
@@ -29,14 +35,18 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Pantry',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="house.fill" color={String(color)} />
+          ),
         }}
       />
       <Tabs.Screen
         name="explore"
         options={{
           title: 'SmartBasket',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="paperplane.fill" color={String(color)} />
+          ),
         }}
       />
     </Tabs>

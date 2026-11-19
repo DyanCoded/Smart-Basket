@@ -299,6 +299,8 @@ To unify the KitchenSync mobile experience with the SmartBasket price optimizati
     - `mobile/services/`: Unified FastAPI client (`api.ts`), offline-to-online sync & basket bridge (`sync.ts`), and real-time Redis Pub/Sub WebSocket stream (`websocket.ts`).
 - **CI Quality Gates (`.github/workflows/ci.yml`):**
   - Added Node.js 20 setup, `npm ci`, TypeScript verification (`npm run typecheck` / `tsc --noEmit`), and ESLint checks (`npm run lint`) to the GitHub Actions pipeline.
+- **Expo SDK 58 Compatibility Upgrade (2026-11-19):**
+  - Upgraded `mobile/` from Expo SDK 53 to Expo SDK 58 (`expo@^58.0.0`) to maintain direct compatibility with the current production Expo Go client on iOS and Android devices, and added automatic LAN IP host resolution via `expo-constants` (`Constants.expoConfig.hostUri`) for physical device testing.
 
 ### Consequences & Trade-offs
 - **Positive:** End-to-end type safety across Python Pydantic schemas and TypeScript interfaces; offline-first resilience via SQLite `pending_sync`; single-tap price comparison for depleted pantry items.

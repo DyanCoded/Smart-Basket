@@ -4,6 +4,8 @@
  * offline delta-sync, and multi-store basket price optimization.
  */
 
+import Constants from 'expo-constants';
+
 import {
   AuthTokenResponse,
   BasketCalculationRequest,
@@ -24,7 +26,20 @@ const DEFAULT_API_BASE_URL = 'http://localhost:8000/api/v1';
 
 export function getApiBaseUrl(): string {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
-  return envUrl ? envUrl.replace(/\/+$/, '') : DEFAULT_API_BASE_URL;
+  if (envUrl) {
+    return envUrl.replace(/\/+$/, '');
+  }
+
+  // In Expo Go on a physical phone, automatically resolve the developer PC LAN IP
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    const lanHost = hostUri.split(':')[0];
+    if (lanHost && lanHost !== 'localhost' && lanHost !== '127.0.0.1') {
+      return `http://${lanHost}:8000/api/v1`;
+    }
+  }
+
+  return DEFAULT_API_BASE_URL;
 }
 
 export function getWebSocketBaseUrl(): string {

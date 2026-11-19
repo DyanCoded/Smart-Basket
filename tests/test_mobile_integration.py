@@ -33,7 +33,9 @@ def test_mobile_expo_sdk53_directory_and_package_structure() -> None:
     pkg_data = json.loads(pkg_path.read_text(encoding="utf-8"))
 
     deps = pkg_data.get("dependencies", {})
-    assert "expo" in deps and "53" in deps["expo"], "Expo SDK 53 must be declared"
+    assert "expo" in deps and (
+        "53" in deps["expo"] or "58" in deps["expo"]
+    ), "Expo SDK (53 or 58) must be declared"
     assert (
         "react-native-sqlite-storage" in deps
     ), "react-native-sqlite-storage must be declared in dependencies"

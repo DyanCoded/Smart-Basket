@@ -830,3 +830,304 @@ STANDARD_422_RESPONSE = {
         ),
     }
 }
+
+STANDARD_401_RESPONSE = {
+    status.HTTP_401_UNAUTHORIZED: {
+        "model": ErrorResponse,
+        "description": "Unauthorized - invalid or expired credentials/token.",
+    }
+}
+
+STANDARD_403_RESPONSE = {
+    status.HTTP_403_FORBIDDEN: {
+        "model": ErrorResponse,
+        "description": "Forbidden - access denied for this household resource.",
+    }
+}
+
+
+# ==============================================================================
+# Authentication & Household Schemas (KitchenSync Phase 2)
+# ==============================================================================
+
+
+class UserRegisterRequest(BaseModel):
+    """User account registration payload."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "username": "sarah_shopper",
+                    "email": "sarah@example.com",
+                    "password": "SecurePassword123!",
+                }
+            ]
+        }
+    )
+
+    username: str = Field(
+        ..., min_length=3, max_length=100, description="Unique username."
+    )
+    email: str = Field(..., max_length=255, description="Unique user email address.")
+    password: str = Field(..., min_length=6, description="Plaintext password.")
+
+
+class UserLoginRequest(BaseModel):
+    """User authentication login payload."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "username": "sarah_shopper",
+                    "password": "SecurePassword123!",
+                }
+            ]
+        }
+    )
+
+    username: str = Field(..., description="Username or email address.")
+    password: str = Field(..., description="User password.")
+
+
+class TokenResponse(BaseModel):
+    """JWT bearer token response."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                    "token_type": "bearer",
+                    "expires_in": 3600,
+                }
+            ]
+        }
+    )
+
+    access_token: str = Field(description="Signed JWT access token.")
+    token_type: str = Field(default="bearer", description="Token type (bearer).")
+    expires_in: int = Field(description="Token validity lifetime in seconds.")
+
+
+class UserResponse(BaseModel):
+    """Public user identity response."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "11111111-2222-3333-4444-555555555555",
+                    "username": "sarah_shopper",
+                    "email": "sarah@example.com",
+                    "created_at": "2026-11-19T14:30:00Z",
+                }
+            ]
+        },
+    )
+
+    id: uuid.UUID = Field(description="Unique user identifier.")
+    username: str = Field(description="User handle.")
+    email: str = Field(description="Email address.")
+    created_at: datetime = Field(description="Registration timestamp.")
+
+
+class MembershipSummary(BaseModel):
+    """Household membership summary for user profile."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "22222222-3333-4444-5555-666666666666",
+                    "home_id": "33333333-4444-5555-6666-777777777777",
+                    "home_name": "Sarah's Apartment",
+                    "role": "buyer",
+                    "joined_at": "2026-11-19T14:30:00Z",
+                }
+            ]
+        },
+    )
+
+    id: uuid.UUID = Field(description="Membership record ID.")
+    home_id: uuid.UUID = Field(description="Household ID.")
+    home_name: str = Field(description="Household display name.")
+    role: str = Field(description="Household role: 'buyer' or 'consumer'.")
+    joined_at: datetime = Field(description="Timestamp when user joined home.")
+
+
+class UserProfileResponse(BaseModel):
+    """Authenticated user profile with active household memberships."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "11111111-2222-3333-4444-555555555555",
+                    "username": "sarah_shopper",
+                    "email": "sarah@example.com",
+                    "created_at": "2026-11-19T14:30:00Z",
+                    "memberships": [
+                        {
+                            "id": "22222222-3333-4444-5555-666666666666",
+                            "home_id": "33333333-4444-5555-6666-777777777777",
+                            "home_name": "Sarah's Apartment",
+                            "role": "buyer",
+                            "joined_at": "2026-11-19T14:30:00Z",
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+
+    id: uuid.UUID = Field(description="User ID.")
+    username: str = Field(description="User handle.")
+    email: str = Field(description="Email address.")
+    created_at: datetime = Field(description="Account creation timestamp.")
+    memberships: List[MembershipSummary] = Field(
+        default_factory=list, description="Active household memberships."
+    )
+
+
+class HomeCreateRequest(BaseModel):
+    """Household creation payload."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "Family Beach House",
+                }
+            ]
+        }
+    )
+
+    name: str = Field(
+        ..., min_length=1, max_length=150, description="Display name for household."
+    )
+
+
+class HomeMemberResponse(BaseModel):
+    """Household member details."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "22222222-3333-4444-5555-666666666666",
+                    "user_id": "11111111-2222-3333-4444-555555555555",
+                    "username": "sarah_shopper",
+                    "email": "sarah@example.com",
+                    "role": "buyer",
+                    "joined_at": "2026-11-19T14:30:00Z",
+                }
+            ]
+        },
+    )
+
+    id: uuid.UUID = Field(description="Membership record ID.")
+    user_id: uuid.UUID = Field(description="User ID.")
+    username: str = Field(description="User handle.")
+    email: str = Field(description="User email.")
+    role: str = Field(description="Role: 'buyer' or 'consumer'.")
+    joined_at: datetime = Field(description="Join timestamp.")
+
+
+class HomeResponse(BaseModel):
+    """Household summary response."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "33333333-4444-5555-6666-777777777777",
+                    "name": "Family Beach House",
+                    "created_at": "2026-11-19T14:30:00Z",
+                    "role": "buyer",
+                    "member_count": 2,
+                }
+            ]
+        },
+    )
+
+    id: uuid.UUID = Field(description="Household ID.")
+    name: str = Field(description="Household name.")
+    created_at: datetime = Field(description="Creation timestamp.")
+    role: Optional[str] = Field(
+        default=None, description="Caller's role in this household."
+    )
+    member_count: Optional[int] = Field(
+        default=None, description="Total members in household."
+    )
+
+
+class HomeDetailResponse(BaseModel):
+    """Detailed household representation including full member list."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "33333333-4444-5555-6666-777777777777",
+                    "name": "Family Beach House",
+                    "created_at": "2026-11-19T14:30:00Z",
+                    "role": "buyer",
+                    "members": [
+                        {
+                            "id": "22222222-3333-4444-5555-666666666666",
+                            "user_id": "11111111-2222-3333-4444-555555555555",
+                            "username": "sarah_shopper",
+                            "email": "sarah@example.com",
+                            "role": "buyer",
+                            "joined_at": "2026-11-19T14:30:00Z",
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+
+    id: uuid.UUID = Field(description="Household ID.")
+    name: str = Field(description="Household name.")
+    created_at: datetime = Field(description="Creation timestamp.")
+    role: str = Field(description="Caller's role in household.")
+    members: List[HomeMemberResponse] = Field(
+        default_factory=list, description="List of household members."
+    )
+
+
+class AddMemberRequest(BaseModel):
+    """Request payload to invite/add a member to a household."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "email": "partner@example.com",
+                    "role": "consumer",
+                }
+            ]
+        }
+    )
+
+    username: Optional[str] = Field(
+        default=None, description="Username of existing user."
+    )
+    email: Optional[str] = Field(
+        default=None, description="Email address of existing user."
+    )
+    user_id: Optional[uuid.UUID] = Field(
+        default=None, description="Direct UUID of user to add."
+    )
+    role: str = Field(
+        default="consumer",
+        description="Role to assign: 'buyer' or 'consumer'.",
+    )

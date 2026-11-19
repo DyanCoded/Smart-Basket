@@ -1,6 +1,7 @@
 # Architectural Decision Records (ADR)
 
 ## Log Summary
+- **2026-11-19:** Implemented stateless JWT authentication (OAuth2PasswordBearer), bcrypt password hashing, and collaborative household management endpoints (users, homes, memberships with buyer/consumer RBAC) with membership dependency guards (Issue #15).
 - **2026-11-19:** Implemented physical database schema and Alembic migration 0002_add_pantry_and_households for multi-user households (users, homes, memberships) and offline-capable pantry inventory tracking (pantry_items, pantry_logs, baskets.home_id) (Issue #14).
 - **2026-11-19:** Adopted KitchenSync pantry synchronization architecture, unified household schema (users, homes, memberships with buyer/consumer RBAC, pantry_items, pantry_logs), Redis 7 Pub/Sub for real-time WebSockets, nullable product_id catalog-to-pantry replenishment bridge, and Expo SDK 53 mobile client under mobile/ (Issue #13, ADR-007).
 - **2026-11-19:** Finalized Phase 1 milestone release packaging, system architecture diagrams, academic retrospective, query performance analysis, Release Notes v1.0.0, and tagged Git release v1.0.0 (Issue #12).

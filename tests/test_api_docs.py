@@ -112,8 +112,8 @@ def test_openapi_status_codes_and_descriptions() -> None:
 
             responses = operation.get("responses", {})
             assert (
-                "200" in responses
-            ), f"Status 200 missing for {method_name.upper()} {path_name}"
+                "200" in responses or "201" in responses
+            ), f"Status 200/201 missing for {method_name.upper()} {path_name}"
             assert (
                 "500" in responses
             ), f"Status 500 missing for {method_name.upper()} {path_name}"

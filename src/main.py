@@ -59,6 +59,17 @@ OPENAPI_TAGS = [
         ),
     },
     {
+        "name": "auth",
+        "description": "User registration, authentication, and JWT profile access.",
+    },
+    {
+        "name": "homes",
+        "description": (
+            "Collaborative household spaces, pantry sharing, and role-based "
+            "memberships."
+        ),
+    },
+    {
         "name": "health",
         "description": "Service liveness and readiness monitoring endpoints.",
     },

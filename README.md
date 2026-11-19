@@ -249,6 +249,7 @@ This project is engineered iteratively following a structured backlog pipeline:
 | **12. Delivery** | `[Release]` Final Packaging, Documentation & Review | 🟢 Completed | [#12](https://github.com/DyanCoded/Smart-Basket/issues/12) · [`RELEASE_NOTES_v1.0.0.md`](docs/RELEASE_NOTES_v1.0.0.md) |
 | **13. Architecture** | `[Arch]` KitchenSync Pantry Integration & Unified Schema ADR | 🟢 Completed | [#13](https://github.com/DyanCoded/Smart-Basket/issues/13) · [`DECISIONS.md`](docs/DECISIONS.md) |
 | **14. Data Layer** | `[Data]` Physical Database Schema & Migration for Pantry & Households | 🟢 Completed | [#14](https://github.com/DyanCoded/Smart-Basket/issues/14) · [`migrations/`](migrations/) |
+| **15. Auth & Access** | `[Backend]` JWT Auth & Household Membership Endpoints | 🟢 Completed | [#15](https://github.com/DyanCoded/Smart-Basket/issues/15) · [`src/api/v1/auth.py`](src/api/v1/auth.py) |
 
 ---
 
@@ -315,6 +316,14 @@ python scripts/export_openapi.py
 | `GET` | `/api/v1/products/{id}/intelligence` | Trend analytics, inflation metrics, and deal veracity score |
 | `GET` | `/api/v1/stores` | Supermarket chains, retailer brands, and branch locations |
 | `POST`| `/api/v1/baskets/calculate` | Single-store totals and Smart Mode multi-store split optimization |
+| `POST`| `/api/v1/auth/register` | Register a new user account with unique email and password |
+| `POST`| `/api/v1/auth/login` | Authenticate user and receive signed JWT access token |
+| `GET` | `/api/v1/auth/me` | Retrieve current user profile and active household memberships |
+| `GET` | `/api/v1/homes` | List all households the authenticated user belongs to |
+| `POST`| `/api/v1/homes` | Create a new household and auto-assign creator as buyer |
+| `GET` | `/api/v1/homes/{id}` | Household details and full member roster (buyer/consumer) |
+| `POST`| `/api/v1/homes/{id}/members` | Invite and add a member with buyer or consumer role |
+| `DELETE`| `/api/v1/homes/{id}/members/{user_id}` | Remove a member from the household |
 
 ---
 

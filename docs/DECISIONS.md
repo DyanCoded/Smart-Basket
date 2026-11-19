@@ -1,6 +1,7 @@
 # Architectural Decision Records (ADR)
 
 ## Log Summary
+- **2026-11-19:** Finalized Phase 1 milestone release packaging, system architecture diagrams, academic retrospective, query performance analysis, Release Notes v1.0.0, and tagged Git release v1.0.0 (Issue #12).
 - **2026-11-18:** Configured OpenAPI 3.1.0 specifications, interactive Swagger UI (`/docs`, `/api/docs`) and ReDoc (`/redoc`, `/api/redoc`) explorers, YAML spec endpoints (`/openapi.yaml`), rich request/response payload examples for basket calculations, and automated export pipeline generating `docs/openapi.json`, `docs/openapi.yaml`, and `docs/postman_collection.json` (Issue #11).
 - **2026-11-18:** Configured automated GitHub Actions CI pipeline (.github/workflows/ci.yml) with PostgreSQL 16 containerization, Alembic migration verification, catalog seed validation, Ruff/Black code quality gates, and automated test suite execution (Issue #10).
 - **2026-11-18:** Implemented Price History Timeseries and Trend Intelligence endpoints with composite index query optimization, chronological ordering, inflation metrics, and promotional deal veracity scoring (Issue #9).

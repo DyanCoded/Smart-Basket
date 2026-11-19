@@ -1,65 +1,124 @@
-# Smart Basket
+# Smart Basket 🛒
 
-> Real-time grocery price intelligence and basket optimization engine featuring multi-store comparison, shopping lists, and price tracking.
+> Real-time grocery price intelligence and basket optimization engine featuring multi-store comparison, price tracking, and intelligent split shopping.
+
+[![CI Status](https://github.com/DyanCoded/Smart-Basket/actions/workflows/ci.yml/badge.svg)](https://github.com/DyanCoded/Smart-Basket/actions/workflows/ci.yml)
+[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg?logo=postgresql)](https://www.postgresql.org/)
+[![Release](https://img.shields.io/badge/release-v1.0.0-green.svg)](docs/RELEASE_NOTES_v1.0.0.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
 
 ## 📌 Project Overview
-Smart Basket is a data-driven platform designed to eliminate the manual effort of hunting across multiple supermarket chains for the best grocery prices. By tracking catalog metadata, price changes over time, and store inventory, the Smart Basket engine calculates the most cost-effective shopping strategy—whether buying everything from a single store or intelligently splitting the basket across multiple retailers.
+
+**Smart Basket** is a data-driven platform designed to eliminate the manual effort of hunting across multiple supermarket chains for the best grocery prices. By tracking catalog metadata, price changes over time, and store inventory, the Smart Basket engine calculates the most cost-effective shopping strategy—whether buying everything from a single store or intelligently splitting the basket across multiple retailers.
 
 ---
 
-## 🎯 Core Features
-- **Catalog Search & Discovery:** Search and filter universal grocery items across categories, brands, and standard packaging sizes.
-- **Multi-Store Price Comparison:** View current, real-time prices for any item across multiple supermarket chains and specific branches.
-- **Smart Basket Optimization:**
-  - **Single-Store Ranking:** Calculates total basket cost per retailer to identify the cheapest single location.
-  - **Basket Splitter (Smart Mode):** Evaluates multi-store splits to maximize user savings on larger shopping runs.
-  - **Missing Item Handling:** Alerts users if a specific store lacks an item in their basket.
-- **Price History & Trend Intelligence:** Track price fluctuations, identify genuine discounts vs. artificial sales, and monitor price trends over time.
+## 🏗️ System Architecture
+
+The platform follows a layered, modular architecture separating presentation, business logic, and persistence:
+
+```mermaid
+flowchart TD
+    subgraph Presentation["Presentation & API Consumers"]
+        Swagger["Swagger UI / ReDoc<br>(/docs, /redoc)"]
+        Postman["Postman Collection<br>(docs/postman_collection.json)"]
+        Clients["Web & Mobile Clients<br>(REST API Consumers)"]
+    end
+
+    subgraph AppLayer["Application Layer (FastAPI ASGI)"]
+        RouterMain["FastAPI Router<br>(src/main.py)"]
+        V1Router["API v1 Router<br>(/api/v1)"]
+        ProdRouter["Products Controller<br>(/api/v1/products)"]
+        StoreRouter["Stores Controller<br>(/api/v1/stores)"]
+        BasketRouter["Baskets Controller<br>(/api/v1/baskets)"]
+    end
+
+    subgraph ServiceLayer["Domain & Business Logic Layer"]
+        CatalogSvc["Catalog Service<br>(catalog_service.py)"]
+        BasketSvc["Optimization Engine<br>(basket_service.py)"]
+        IntelSvc["Price Intelligence<br>(intelligence_service.py)"]
+    end
+
+    subgraph DataLayer["Persistence Layer"]
+        ORM["SQLAlchemy 2.0 ORM<br>(Declarative Entities)"]
+        Alembic["Alembic Migrations<br>(0001_baseline_schema)"]
+        DB[("PostgreSQL 16 Engine<br>(Relational Database)")]
+    end
+
+    Presentation --> RouterMain
+    RouterMain --> V1Router
+    V1Router --> ProdRouter
+    V1Router --> StoreRouter
+    V1Router --> BasketRouter
+
+    ProdRouter --> CatalogSvc
+    ProdRouter --> IntelSvc
+    StoreRouter --> CatalogSvc
+    BasketRouter --> BasketSvc
+
+    CatalogSvc --> ORM
+    BasketSvc --> ORM
+    IntelSvc --> ORM
+    ORM --> DB
+    Alembic -.-> DB
+```
+
+For detailed architectural justifications, design patterns, and entity-relationship models, see the [Academic Retrospective](docs/RETROSPECTIVE.md).
 
 ---
 
-## 👥 User Personas & Core Journeys
-1. **The Everyday Shopper:**
-   - Searches for common household staples.
-   - Builds a weekly grocery basket and requests an optimized store breakdown.
-   - Checks historical price trends to decide whether to buy now or wait for promotions.
-2. **The Catalog Admin / System:**
-   - Ingests and maintains supermarket chains, store locations, and product taxonomies.
-   - Updates store-specific prices and logs historical changes.
+## 🎯 Core Features & User Journeys
+
+### 1. Catalog Search & Discovery (Journey 1)
+- Search universal grocery items across categories, brands, and standard packaging sizes (e.g. 2L, 500g, 1kg).
+- Barcode/EAN-13 lookups and normalized unit pricing ($Price / Unit$).
+
+### 2. Multi-Store Price Comparison & Basket Optimization (Journey 2)
+- **Single-Store Ranking:** Calculates total basket cost per retailer to identify the cheapest single location.
+- **Smart Mode (2-Store Split):** Evaluates multi-store splits where buying staple items at two different stores yields lower total costs than any single store.
+- **Missing Item Handling:** Alerts users if a specific store branch lacks an item in their basket, reporting partial subtotals and missing item lists.
+- **Exact Decimal Math:** All financial calculations utilize standard `Decimal` arithmetic to guarantee zero floating-point calculation error.
+
+### 3. Price History Tracking & Intelligence (Journey 3)
+- **Chronological Timeseries:** Query historical price movements over configurable windows (30d, 90d, 1y).
+- **Trend Metrics:** Compute all-time high/low, store averages, and inflation trend direction (`INCREASING`, `DECREASING`, `STABLE`).
+- **Discount Veracity Score:** 0–100 rating identifying whether an active promotion is a genuine deal (`GENUINE_SAVINGS`) or a cosmetic discount (`ARTIFICIAL_DISCOUNT`).
 
 ---
 
-## 🏗️ Project Architecture & Status
+## 📋 Project Status & Milestone Backlog
 
 This project is engineered iteratively following a structured backlog pipeline:
 
-| Phase | Milestone / Issue | Status |
-| :--- | :--- | :---: |
-| **01. Discovery** | `[Spec]` Core User Journeys & Smart Basket Requirements | 🟢 Completed |
-| **02. Design** | `[Data]` Conceptual Domain Model & Entity Relationships | 🟢 Completed |
-| **03. Architecture**| `[Arch]` Tech Stack Selection & Database Evaluation | 🟢 Completed |
-| **04. Tooling** | `[Setup]` Scaffolding, Directory Layout & Local Env | 🟢 Completed |
-| **05. Data Layer** | `[Data]` Physical Database Schema & Baseline Migrations | 🟢 Completed |
-| **06. Testing Data**| `[Data]` Catalog Seeding Script & Test Data Fixtures | 🟢 Completed |
-| **07. Core API** | `[Backend]` Product Search & Store Pricing Endpoints | 🟢 Completed |
-| **08. Algorithms** | `[Backend]` Basket Calculation & Multi-Store Optimization | 🟢 Completed |
-| **09. Analytics** | `[Backend]` Price History Tracking & Intelligence APIs | 🟢 Completed |
-| **10. DevOps** | `[CI/CD]` GitHub Actions Pipeline for Linting & Tests | 🟢 Completed |
-| **11. Specs** | `[Docs]` OpenAPI / Swagger Specs & API Explorer | 🟢 Completed |
-| **12. Delivery** | `[Release]` Final Packaging, Documentation & Review | ⚪ Planned |
+| Phase | Milestone / Issue | Status | Reference |
+| :--- | :--- | :---: | :--- |
+| **01. Discovery** | `[Spec]` Core User Journeys & Smart Basket Requirements | 🟢 Completed | [#1](https://github.com/DyanCoded/Smart-Basket/issues/1) · [`SPECIFICATION.md`](docs/SPECIFICATION.md) |
+| **02. Design** | `[Data]` Conceptual Domain Model & Entity Relationships | 🟢 Completed | [#2](https://github.com/DyanCoded/Smart-Basket/issues/2) · [`domain-model.md`](docs/domain-model.md) |
+| **03. Architecture**| `[Arch]` Tech Stack Selection & Database Evaluation | 🟢 Completed | [#3](https://github.com/DyanCoded/Smart-Basket/issues/3) · [`DECISIONS.md`](docs/DECISIONS.md) |
+| **04. Tooling** | `[Setup]` Scaffolding, Directory Layout & Local Env | 🟢 Completed | [#4](https://github.com/DyanCoded/Smart-Basket/issues/4) · [`pyproject.toml`](pyproject.toml) |
+| **05. Data Layer** | `[Data]` Physical Database Schema & Baseline Migrations | 🟢 Completed | [#5](https://github.com/DyanCoded/Smart-Basket/issues/5) · [`alembic/`](alembic/) |
+| **06. Testing Data**| `[Data]` Catalog Seeding Script & Test Data Fixtures | 🟢 Completed | [#6](https://github.com/DyanCoded/Smart-Basket/issues/6) · [`scripts/seed.py`](scripts/seed.py) |
+| **07. Core API** | `[Backend]` Product Search & Store Pricing Endpoints | 🟢 Completed | [#7](https://github.com/DyanCoded/Smart-Basket/issues/7) · [`src/api/v1/`](src/api/v1/) |
+| **08. Algorithms** | `[Backend]` Basket Calculation & Multi-Store Optimization | 🟢 Completed | [#8](https://github.com/DyanCoded/Smart-Basket/issues/8) · [`basket_service.py`](src/services/basket_service.py) |
+| **09. Analytics** | `[Backend]` Price History Tracking & Intelligence APIs | 🟢 Completed | [#9](https://github.com/DyanCoded/Smart-Basket/issues/9) · [`intelligence_service.py`](src/services/intelligence_service.py) |
+| **10. DevOps** | `[CI/CD]` GitHub Actions Pipeline for Linting & Tests | 🟢 Completed | [#10](https://github.com/DyanCoded/Smart-Basket/issues/10) · [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
+| **11. Specs** | `[Docs]` OpenAPI / Swagger Specs & API Explorer | 🟢 Completed | [#11](https://github.com/DyanCoded/Smart-Basket/issues/11) · [`docs/openapi.json`](docs/openapi.json) |
+| **12. Delivery** | `[Release]` Final Packaging, Documentation & Review | 🟢 Completed | [#12](https://github.com/DyanCoded/Smart-Basket/issues/12) · [`RELEASE_NOTES_v1.0.0.md`](docs/RELEASE_NOTES_v1.0.0.md) |
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Git
-- Python 3.11+
-- Docker & Docker Compose (for PostgreSQL 16)
+- **Git**
+- **Python 3.11+**
+- **Docker & Docker Compose** (for PostgreSQL 16)
 
-### Local Setup
+### Step-by-Step Local Setup
 
 1. **Clone the repository:**
    ```bash
@@ -70,71 +129,98 @@ This project is engineered iteratively following a structured backlog pipeline:
 2. **Set up virtual environment & install dependencies:**
    ```bash
    python -m venv .venv
-   # Windows:
+
+   # Activate virtual environment:
+   # On Windows:
    .venv\Scripts\activate
-   # Linux/macOS:
+   # On Linux/macOS:
    source .venv/bin/activate
 
-   # Install development dependencies:
+   # Install development and testing dependencies:
    pip install -r requirements-dev.txt
    ```
 
-3. **Set up environment variables:**
+3. **Configure environment variables:**
    ```bash
    cp .env.example .env
    ```
 
-4. **Start local PostgreSQL 16 database:**
+4. **Start local PostgreSQL 16 database container:**
    ```bash
    docker compose up -d
    ```
 
-5. **Apply database migrations & seed catalog data:**
+5. **Apply database migrations & seed catalog fixtures:**
    ```bash
    alembic upgrade head
-   python scripts/seed.py
-   # Or run via SQL directly:
-   # psql -h localhost -U postgres -d smart_basket -f scripts/seed.sql
+   python scripts/seed.py --verify
    ```
 
-6. **Run test suite & code quality checks:**
+6. **Run automated verification suite:**
    ```bash
-   # Run automated verification suite (linter, formatter check, tests)
+   # Executes Ruff linter, Black formatter check, and all Pytest suites:
    python scripts/check.py
-
-   # Or run individually:
-   python -m pytest
-   python -m ruff check .
-   python -m black --check .
    ```
 
-7. **Start local development API server:**
+7. **Start the development API server:**
    ```bash
    uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
 ---
 
-## 📖 API Documentation & Interactive Explorer
+## 💻 Sample API Usage
 
-Smart Basket includes auto-generated OpenAPI 3.1.0 specifications and interactive documentation explorers:
+### 1. Catalog Search
+```bash
+curl -s "http://localhost:8000/api/v1/products?q=milk&limit=5" | jq .
+```
+
+### 2. Multi-Store Basket Calculation (Single-Store Ranking & Smart Split)
+```bash
+curl -X POST "http://localhost:8000/api/v1/baskets/calculate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "items": [
+      {
+        "product_id": "6e2941e3-033d-5768-8143-5e7ebc24b874",
+        "quantity": 2.0
+      },
+      {
+        "product_id": "ab9928f5-221a-5546-8b6c-c4ec04fbe933",
+        "quantity": 1.0
+      }
+    ]
+  }' | jq .
+```
+
+### 3. Price Trend Intelligence & Deal Veracity
+```bash
+curl -s "http://localhost:8000/api/v1/products/6e2941e3-033d-5768-8143-5e7ebc24b874/intelligence" | jq .
+```
+
+---
+
+## 📖 API Documentation & Client Collections
+
+Smart Basket features native OpenAPI 3.1.0 specifications and interactive documentation:
 
 ### Interactive Documentation UIs
 - **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs) (alias: [/api/docs](http://localhost:8000/api/docs))
 - **ReDoc UI:** [http://localhost:8000/redoc](http://localhost:8000/redoc) (alias: [/api/redoc](http://localhost:8000/api/redoc))
 
-### Exported Specifications & Client Collections
+### Exported Artifacts
 - **OpenAPI 3.1.0 JSON Spec:** [`docs/openapi.json`](docs/openapi.json) (live endpoint: `/openapi.json`)
 - **OpenAPI 3.1.0 YAML Spec:** [`docs/openapi.yaml`](docs/openapi.yaml) (live endpoint: `/openapi.yaml`)
-- **Postman Collection v2.1.0:** [`docs/postman_collection.json`](docs/postman_collection.json) — Ready for one-click import into Postman or Insomnia.
+- **Postman Collection v2.1.0:** [`docs/postman_collection.json`](docs/postman_collection.json) — Importable into Postman or Insomnia.
 
-### Regenerating API Artifacts
-Whenever routes, Pydantic schemas, or examples change, regenerate the documentation artifacts with:
+### Regenerating Documentation Artifacts
+Whenever routes, Pydantic schemas, or examples are modified:
 ```bash
 python scripts/export_openapi.py
 ```
 
-### Endpoints Overview
+### API Endpoints Summary
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
@@ -146,4 +232,19 @@ python scripts/export_openapi.py
 | `GET` | `/api/v1/products/{id}/intelligence` | Trend analytics, inflation metrics, and deal veracity score |
 | `GET` | `/api/v1/stores` | Supermarket chains, retailer brands, and branch locations |
 | `POST`| `/api/v1/baskets/calculate` | Single-store totals and Smart Mode multi-store split optimization |
-
+
+---
+
+## 🎓 Academic Documentation & Retrospective
+
+For academic review, architecture justifications, and grading artifacts:
+- **[Academic Retrospective & Technical Evaluation](docs/RETROSPECTIVE.md):** In-depth discussion of domain modeling, combinatorial complexity, indexing strategy, benchmarks, trade-offs, and Phase 2 roadmap.
+- **[Architectural Decision Records (ADR)](docs/DECISIONS.md):** Documented architectural choices and trade-offs.
+- **[Domain Model Specification](docs/domain-model.md):** Conceptual domain entities and normalization rules.
+- **[User Journeys Specification](docs/SPECIFICATION.md):** Core personas and user workflows.
+- **[Release Notes v1.0.0](docs/RELEASE_NOTES_v1.0.0.md):** Final Phase 1 milestone deliverables and changelog.
+
+---
+
+## 📄 License
+This project is open-source under the [MIT License](LICENSE).

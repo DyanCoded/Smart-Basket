@@ -22,10 +22,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from sqlalchemy.orm import Session  # noqa: E402
 
 from src.core.database import SessionLocal  # noqa: E402
-from src.scrapers.base import (  # noqa: E402
-    BaseRetailerScraper,
-    PlaceholderFixtureScraper,
-)
+from src.scrapers.base import BaseRetailerScraper  # noqa: E402
 from src.scrapers.models import NormalizedPriceRecord, PublishSummary  # noqa: E402
 from src.scrapers.normalizer import normalize_scraped_item  # noqa: E402
 from src.scrapers.publisher import CatalogPublisher  # noqa: E402
@@ -34,6 +31,7 @@ from src.scrapers.retailers.shoprite_group import (  # noqa: E402
     CheckersScraper,
     ShopriteScraper,
 )
+from src.scrapers.retailers.spar import SparScraper  # noqa: E402
 from src.scrapers.retailers.woolworths import WoolworthsScraper  # noqa: E402
 
 logger = logging.getLogger("smart_basket.scrapers")
@@ -46,16 +44,14 @@ CANONICAL_RETAILERS: tuple[str, ...] = (
     "spar",
 )
 
-# Registry of retailer scraper factories.
-# Live adapters registered for Shoprite, Checkers (#20), Pick n Pay (#21)
-# & Woolworths Food (#22).
-# PLACEHOLDER_: SPAR uses PlaceholderFixtureScraper until its live adapter (#23) lands.
+# Registry of live catalog scraper factories across all 5 South African national chains
+# (Shoprite & Checkers #20, Pick n Pay #21, Woolworths Food #22, SPAR #23).
 SCRAPER_REGISTRY: dict[str, Callable[[], BaseRetailerScraper]] = {
     "shoprite": ShopriteScraper,
     "checkers": CheckersScraper,
     "pick-n-pay": PickNPayScraper,
     "woolworths-food": WoolworthsScraper,
-    "spar": lambda: PlaceholderFixtureScraper(retailer_slug="spar"),
+    "spar": SparScraper,
 }
 
 

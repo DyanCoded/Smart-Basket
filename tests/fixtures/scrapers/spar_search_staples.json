@@ -1,0 +1,62 @@
+{
+  "_fixture_note": "PLACEHOLDER_ offline catalog & specials JSON fixture for SPAR South Africa (www.spar.co.za)",
+  "data": {
+    "page": 1,
+    "total": 5,
+    "products": [
+      {
+        "sku": "SP-10001",
+        "ean": "6001299011011",
+        "productName": "Clover Full Cream Fresh Milk 2L",
+        "brand": "Clover",
+        "packSize": "2 Litre",
+        "categoryName": "Dairy & Eggs",
+        "regularPrice": "R40.49",
+        "sparRewardsPrice": "SPAR Rewards: R34.99",
+        "productUrl": "/Products/Dairy/Clover-Full-Cream-Fresh-Milk-2L"
+      },
+      {
+        "sku": "SP-10002",
+        "barcodeNumber": "6001299011059",
+        "productName": "Albany Superior Sliced White Bread 700g",
+        "brand": "Albany",
+        "weight": "700g",
+        "department": "Bakery",
+        "price": 18.49,
+        "productUrl": "/Products/Bakery/Albany-White-Bread-700g"
+      },
+      {
+        "sku": "SP-10003",
+        "ean": "6001299011028",
+        "productName": "Farmer Brown Large Eggs 18's",
+        "brand": "Farmer Brown",
+        "packSize": "18's",
+        "department": "Dairy & Eggs",
+        "regularPrice": {
+          "formattedValue": "R66.49"
+        },
+        "multiBuyText": "Any 2 for R114.98",
+        "productUrl": "/Products/Dairy/Farmer-Brown-Eggs-18s"
+      },
+      {
+        "sku": "SP-10004",
+        "productName": "Tastic Long Grain Parboiled White Rice 2kg",
+        "brand": "Tastic",
+        "packSize": "2000g",
+        "category": "Pantry Staples",
+        "price": "R 46.99",
+        "promoText": "SPAR Rewards Save R5.00",
+        "productUrl": "/Products/Pantry/Tastic-Rice-2kg"
+      },
+      {
+        "sku": "SP-40128",
+        "productName": "SPAR Full Cream UHT Milk 6 x 1L",
+        "packSize": "6 x 1L",
+        "category": "Dairy & Eggs",
+        "price": "R109.99",
+        "specialPrice": "R99.99",
+        "productUrl": "/Specials/SPAR-Full-Cream-UHT-Milk-6x1L"
+      }
+    ]
+  }
+}

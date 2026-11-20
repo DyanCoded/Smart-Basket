@@ -27,6 +27,7 @@ from src.scrapers.retailers import (
     PickNPayScraper,
     ShopriteGroupBaseScraper,
     ShopriteScraper,
+    SparScraper,
     WoolworthsScraper,
 )
 
@@ -38,6 +39,7 @@ __all__ = [
     "ShopriteScraper",
     "PickNPayScraper",
     "WoolworthsScraper",
+    "SparScraper",
     "CanonicalRetailerSlug",
     "CanonicalUnitType",
     "RawScrapedItem",

@@ -44,8 +44,8 @@ export const SEED_CATALOG_PRODUCTS = {
     unit_type: 'loaf',
   },
   LARGE_EGGS_18PK: {
-    id: '4f8b2f19-6c87-54d5-9c9a-3102e9f76b12',
-    name: 'Free Range Large Eggs 18pk',
+    id: '4ca9f9c4-dea2-5f16-8ffb-4ec70ea08382',
+    name: 'Large Eggs 18pk',
     unit_type: 'pack',
   },
 };

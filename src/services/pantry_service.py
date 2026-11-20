@@ -16,7 +16,14 @@ from src.api.v1.schemas import (
     PantryItemUpdateRequest,
     PantrySyncMutation,
 )
-from src.models.entities import Basket, BasketItem, PantryItem, PantryLog, Product
+from src.models.entities import (
+    Basket,
+    BasketItem,
+    Category,
+    PantryItem,
+    PantryLog,
+    Product,
+)
 from src.services.pubsub_service import (
     EVENT_ITEM_DELETED,
     EVENT_ITEM_UPDATED,
@@ -440,6 +447,24 @@ def sync_pantry_mutations(
         if clean_status not in ("ok", "low", "finished"):
             clean_status = "ok"
 
+        # Gracefully validate foreign keys so stale/unknown client UUIDs
+        # degrade to custom items rather than failing with ForeignKeyViolation
+        resolved_product_id = mut.product_id
+        if resolved_product_id is not None:
+            product_exists = session.scalar(
+                select(Product.id).where(Product.id == resolved_product_id)
+            )
+            if not product_exists:
+                resolved_product_id = None
+
+        resolved_category_id = mut.category_id
+        if resolved_category_id is not None:
+            category_exists = session.scalar(
+                select(Category.id).where(Category.id == resolved_category_id)
+            )
+            if not category_exists:
+                resolved_category_id = None
+
         existing = session.scalar(
             select(PantryItem).where(
                 PantryItem.id == mut.id,
@@ -460,8 +485,8 @@ def sync_pantry_mutations(
 
             if client_time >= server_time:
                 prev_status = existing.status
-                existing.product_id = mut.product_id
-                existing.category_id = mut.category_id
+                existing.product_id = resolved_product_id
+                existing.category_id = resolved_category_id
                 if mut.custom_name is not None:
                     existing.custom_name = mut.custom_name.strip() or None
                 if mut.barcode is not None:
@@ -514,8 +539,8 @@ def sync_pantry_mutations(
             new_item = PantryItem(
                 id=mut.id,
                 home_id=home_id,
-                product_id=mut.product_id,
-                category_id=mut.category_id,
+                product_id=resolved_product_id,
+                category_id=resolved_category_id,
                 custom_name=mut.custom_name.strip() if mut.custom_name else None,
                 barcode=mut.barcode.strip() if mut.barcode else None,
                 quantity=mut.quantity,

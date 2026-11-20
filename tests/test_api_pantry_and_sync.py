@@ -334,3 +334,48 @@ def test_pantry_household_isolation_and_403(client: TestClient) -> None:
         headers=header_b,
     )
     assert res_sync.status_code == 403
+
+
+def test_offline_sync_nonexistent_product_id_degrades_to_custom_item(
+    client: TestClient,
+) -> None:
+    """Verify sync gracefully clears unknown product_id instead of 500 FK error."""
+    _, home_id, header = _create_authenticated_user_and_home(
+        client, "fk_guard_user", "fk_guard@example.com", "FK Guard Home"
+    )
+
+    client_item_id = str(uuid.uuid4())
+    unknown_product_id = "4f8b2f19-6c87-54d5-9c9a-3102e9f76b12"
+    unknown_category_id = str(uuid.uuid4())
+
+    sync_res = client.post(
+        f"/api/v1/homes/{home_id}/pantry/sync",
+        headers=header,
+        json={
+            "last_synced_at": None,
+            "mutations": [
+                {
+                    "id": client_item_id,
+                    "product_id": unknown_product_id,
+                    "category_id": unknown_category_id,
+                    "custom_name": "Free Range Large Eggs 18pk",
+                    "quantity": "2.00",
+                    "unit_type": "pack",
+                    "low_stock_threshold": "1.00",
+                    "status": "low",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                    "is_deleted": False,
+                }
+            ],
+        },
+    )
+    assert sync_res.status_code == 200
+    body = sync_res.json()
+    assert body["applied_mutations_count"] == 1
+
+    matched = next((i for i in body["items"] if i["id"] == client_item_id), None)
+    assert matched is not None
+    assert matched["product_id"] is None
+    assert matched["category_id"] is None
+    assert matched["custom_name"] == "Free Range Large Eggs 18pk"
+    assert matched["status"] == "low"

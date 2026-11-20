@@ -103,6 +103,21 @@ export async function initLocalDatabase(): Promise<SQLiteDatabase | null> {
     await db.executeSql(CREATE_PENDING_SYNC_TABLE_SQL);
     await db.executeSql(CREATE_SYNC_META_TABLE_SQL);
 
+    // Heal any previously cached stale demo Eggs product_id in local SQLite
+    await db.executeSql(
+      `UPDATE local_pantry_items
+       SET product_id = '4ca9f9c4-dea2-5f16-8ffb-4ec70ea08382',
+           custom_name = 'Large Eggs 18pk',
+           product_name = 'Large Eggs 18pk'
+       WHERE product_id = '4f8b2f19-6c87-54d5-9c9a-3102e9f76b12';`
+    );
+    await db.executeSql(
+      `UPDATE pending_sync
+       SET product_id = '4ca9f9c4-dea2-5f16-8ffb-4ec70ea08382',
+           custom_name = 'Large Eggs 18pk'
+       WHERE product_id = '4f8b2f19-6c87-54d5-9c9a-3102e9f76b12';`
+    );
+
     dbInstance = db;
     return dbInstance;
   } catch {

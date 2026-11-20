@@ -1459,8 +1459,9 @@ paths:
     get:
       tags:
       - health
-      summary: Service health check
-      description: Verify API service liveness and operational status.
+      summary: Service health check & catalog freshness telemetry
+      description: Verify API service liveness and expose latest national chain price
+        refresh telemetry for client freshness indicators.
       operationId: health_check_health_get
       responses:
         '200':
@@ -1468,13 +1469,17 @@ paths:
           content:
             application/json:
               schema:
-                additionalProperties:
-                  type: string
+                additionalProperties: true
                 type: object
                 title: Response Health Check Health Get
               example:
                 status: ok
                 app: Smart Basket API
+                catalog_freshness:
+                  status: ok
+                  last_price_sync_at: '2026-11-20T03:05:12+00:00'
+                  active_chains: 5
+                  tracked_prices: 90
         '500':
           description: Internal server error occurred.
           content:
@@ -3096,6 +3101,13 @@ components:
           minimum: 0.0
           title: Offset
           description: Items offset
+        last_price_sync_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Price Sync At
+          description: Latest price refresh timestamp across monitored national chains
       type: object
       required:
       - items
@@ -3109,12 +3121,15 @@ components:
         - created_at: '2026-01-15T08:00:00Z'
           id: 26f7a89e-0e58-56e3-a225-8c7310382985
           is_active: true
+          last_price_sync_at: '2026-11-20T03:05:12Z'
           name: Checkers
           retailer:
             id: 3ae15000-8907-5fb5-9904-c47dba4bcc3e
             name: Checkers
             slug: checkers
           retailer_id: 3ae15000-8907-5fb5-9904-c47dba4bcc3e
+          tracked_products_count: 18
+        last_price_sync_at: '2026-11-20T03:05:12Z'
         limit: 50
         offset: 0
         total: 5
@@ -3220,6 +3235,19 @@ components:
           - $ref: '#/components/schemas/RetailerSummary'
           - type: 'null'
           description: Expanded parent retailer details
+        last_price_sync_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Price Sync At
+          description: Most recent price refresh timestamp for this national chain
+        tracked_products_count:
+          type: integer
+          minimum: 0.0
+          title: Tracked Products Count
+          description: Number of active priced products tracked for this chain
+          default: 0
         created_at:
           type: string
           format: date-time

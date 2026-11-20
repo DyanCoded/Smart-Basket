@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import logging
+from typing import Annotated, Any
 
 import yaml
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, Response
+from sqlalchemy.orm import Session
 
 from src.api.v1.router import api_v1_router
 from src.api.v1.schemas import ErrorResponse
+from src.core.database import get_db
+from src.services import catalog_service
 
 logger = logging.getLogger("smart_basket")
 
@@ -200,15 +204,27 @@ def get_openapi_yaml() -> Response:
 @app.get(
     "/health",
     tags=["health"],
-    summary="Service health check",
-    description="Verify API service liveness and operational status.",
-    response_description="Liveness status and application name.",
+    summary="Service health check & catalog freshness telemetry",
+    description=(
+        "Verify API service liveness and expose latest national chain price "
+        "refresh telemetry for client freshness indicators."
+    ),
+    response_description="Liveness status, application name, and price sync telemetry.",
     responses={
         status.HTTP_200_OK: {
             "description": "Service is healthy and responding.",
             "content": {
                 "application/json": {
-                    "example": {"status": "ok", "app": "Smart Basket API"}
+                    "example": {
+                        "status": "ok",
+                        "app": "Smart Basket API",
+                        "catalog_freshness": {
+                            "status": "ok",
+                            "last_price_sync_at": "2026-11-20T03:05:12+00:00",
+                            "active_chains": 5,
+                            "tracked_prices": 90,
+                        },
+                    }
                 }
             },
         },
@@ -218,9 +234,23 @@ def get_openapi_yaml() -> Response:
         },
     },
 )
-def health_check() -> dict[str, str]:
-    """Basic healthcheck endpoint verifying service liveness."""
-    return {"status": "ok", "app": "Smart Basket API"}
+def health_check(db: Annotated[Session, Depends(get_db)]) -> dict[str, Any]:
+    """Healthcheck endpoint exposing service liveness and catalog freshness."""
+    try:
+        freshness = catalog_service.get_catalog_freshness_telemetry(db)
+    except Exception:  # noqa: BLE001
+        logger.debug("Catalog freshness telemetry unavailable during /health check")
+        freshness = {
+            "status": "unavailable",
+            "last_price_sync_at": None,
+            "active_chains": 0,
+            "tracked_prices": 0,
+        }
+    return {
+        "status": "ok",
+        "app": "Smart Basket API",
+        "catalog_freshness": freshness,
+    }
 
 
 @app.exception_handler(HTTPException)

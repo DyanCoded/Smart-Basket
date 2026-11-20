@@ -82,9 +82,31 @@ def list_stores(
         limit=limit,
         offset=offset,
     )
+    freshness_map = catalog_service.get_store_freshness_map(
+        db, [store.id for store in items]
+    )
+
+    store_responses: list[StoreResponse] = []
+    latest_sync_at = None
+    for store in items:
+        chain_sync_at, tracked_count = freshness_map.get(store.id, (None, 0))
+        if chain_sync_at is not None and (
+            latest_sync_at is None or chain_sync_at > latest_sync_at
+        ):
+            latest_sync_at = chain_sync_at
+
+        store_resp = StoreResponse.model_validate(store).model_copy(
+            update={
+                "last_price_sync_at": chain_sync_at,
+                "tracked_products_count": tracked_count,
+            }
+        )
+        store_responses.append(store_resp)
+
     return StoreListResponse(
-        items=[StoreResponse.model_validate(s) for s in items],
+        items=store_responses,
         total=total,
         limit=limit,
         offset=offset,
+        last_price_sync_at=latest_sync_at,
     )

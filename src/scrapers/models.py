@@ -175,6 +175,23 @@ class PublishSummary(BaseModel):
     dry_run: bool = Field(
         default=False, description="True when no DB mutations were committed"
     )
+    status: Literal["ok", "partial", "failed"] = Field(
+        default="ok",
+        description="Execution outcome for this retailer ('ok', 'partial', 'failed')",
+    )
+    error: Optional[str] = Field(
+        default=None,
+        description="Structured error description when retailer scrape/publish failed",
+    )
+    duration_seconds: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Wall-clock execution duration for this retailer in seconds",
+    )
+    synced_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="UTC completion timestamp for this retailer run",
+    )
     records_processed: int = Field(default=0, ge=0)
     products_matched: int = Field(default=0, ge=0)
     products_created: int = Field(default=0, ge=0)

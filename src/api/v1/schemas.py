@@ -183,6 +183,15 @@ class StoreResponse(BaseModel):
     retailer: Optional[RetailerSummary] = Field(
         default=None, description="Expanded parent retailer details"
     )
+    last_price_sync_at: Optional[datetime] = Field(
+        default=None,
+        description="Most recent price refresh timestamp for this national chain",
+    )
+    tracked_products_count: int = Field(
+        default=0,
+        ge=0,
+        description="Number of active priced products tracked for this chain",
+    )
     created_at: datetime = Field(description="Timestamp when chain was registered")
 
 
@@ -206,12 +215,15 @@ class StoreListResponse(BaseModel):
                                 "name": "Checkers",
                                 "slug": "checkers",
                             },
+                            "last_price_sync_at": "2026-11-20T03:05:12Z",
+                            "tracked_products_count": 18,
                             "created_at": "2026-01-15T08:00:00Z",
                         }
                     ],
                     "total": 5,
                     "limit": 50,
                     "offset": 0,
+                    "last_price_sync_at": "2026-11-20T03:05:12Z",
                 }
             ]
         }
@@ -221,6 +233,10 @@ class StoreListResponse(BaseModel):
     total: int = Field(ge=0, description="Total matching retailer chains count")
     limit: int = Field(ge=1, le=100, description="Items limit per page")
     offset: int = Field(ge=0, description="Items offset")
+    last_price_sync_at: Optional[datetime] = Field(
+        default=None,
+        description="Latest price refresh timestamp across monitored national chains",
+    )
 
 
 class StorePriceItem(BaseModel):

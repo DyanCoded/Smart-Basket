@@ -1,0 +1,123 @@
+name: Daily Price Sync
+
+on:
+  schedule:
+    # Run daily at 03:00 UTC (05:00 SAST) across all 5 South African national chains
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      retailer:
+        description: "Target national retailer chain slug or 'all'"
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - shoprite
+          - checkers
+          - pick-n-pay
+          - woolworths-food
+          - spar
+      dry_run:
+        description: "Run in dry-run mode (scrape & diff without DB writes)"
+        required: false
+        default: false
+        type: boolean
+      force_history:
+        description: "Append daily price_history snapshots even when prices are unchanged"
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: daily-price-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  scrape-national-prices:
+    name: Refresh National Chain Prices
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ENVIRONMENT: production
+      PYTHONPATH: .
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ensure database schema is up to date
+        if: ${{ env.DATABASE_URL != '' }}
+        run: |
+          alembic upgrade head
+
+      - name: Run daily national chain price scrapers
+        id: run_scrapers
+        env:
+          INPUT_RETAILER: ${{ inputs.retailer || 'all' }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run || false }}
+          INPUT_FORCE_HISTORY: ${{ inputs.force_history != false }}
+        run: |
+          ARGS="--retailer ${INPUT_RETAILER} --summary-json scraper_summary.json"
+          if [ "${INPUT_FORCE_HISTORY}" = "true" ]; then
+            ARGS="${ARGS} --force-history"
+          fi
+          if [ "${INPUT_DRY_RUN}" = "true" ] || [ -z "${DATABASE_URL}" ]; then
+            if [ -z "${DATABASE_URL}" ]; then
+              echo "::warning::DATABASE_URL secret is not configured; executing in dry-run mode."
+            fi
+            ARGS="${ARGS} --dry-run"
+          fi
+          python scripts/run_scrapers.py ${ARGS}
+
+      - name: Publish scraper health summary to GitHub Job Summary
+        if: always() && hashFiles('scraper_summary.json') != ''
+        run: |
+          python -c "
+          import json
+          with open('scraper_summary.json', encoding='utf-8') as f:
+              data = json.load(f)
+          lines = [
+              '## SmartBasket Daily Price Sync Telemetry',
+              f\"- **Overall Status:** \`{data['overall_status'].upper()}\`\",
+              f\"- **Succeeded / Total:** {data['succeeded']} / {data['total_retailers']}\",
+              f\"- **Completed At (UTC):** {data['completed_at']}\",
+              '',
+              '| Chain | Status | Processed | Matched | Created | Inserted | Updated | Unchanged | History | Duration (s) | Error |',
+              '| :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | :--- |',
+          ]
+          for r in data['retailers']:
+              err = (r.get('error') or '—').replace('|', '/')
+              lines.append(
+                  f\"| {r['retailer_slug']} | {r['status']} | {r['records_processed']} | \"
+                  f\"{r['products_matched']} | {r['products_created']} | {r['prices_inserted']} | \"
+                  f\"{r['prices_updated']} | {r['prices_unchanged']} | {r['history_appended']} | \"
+                  f\"{r['duration_seconds']:.2f} | {err} |\"
+              )
+          with open('${GITHUB_STEP_SUMMARY}', 'a', encoding='utf-8') as out:
+              out.write('\n'.join(lines) + '\n')
+          "
+
+      - name: Upload scraper telemetry artifact
+        if: always() && hashFiles('scraper_summary.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraper-telemetry-${{ github.run_id }}
+          path: scraper_summary.json
+          retention-days: 14

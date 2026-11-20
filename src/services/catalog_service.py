@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any, Sequence
 
 from sqlalchemy import func, or_, select
@@ -130,3 +131,42 @@ def get_stores(
     items = session.scalars(paginated_stmt).unique().all()
 
     return items, total
+
+
+def get_store_freshness_map(
+    session: Session,
+    store_ids: Sequence[uuid.UUID],
+) -> dict[uuid.UUID, tuple[datetime | None, int]]:
+    """Return {store_id: (latest_updated_at, tracked_products_count)} in one query."""
+    if not store_ids:
+        return {}
+
+    stmt = (
+        select(
+            StorePrice.store_id,
+            func.max(StorePrice.updated_at).label("last_sync"),
+            func.count(StorePrice.id).label("tracked_count"),
+        )
+        .where(StorePrice.store_id.in_(store_ids))
+        .group_by(StorePrice.store_id)
+    )
+    rows = session.execute(stmt).all()
+    return {row.store_id: (row.last_sync, int(row.tracked_count or 0)) for row in rows}
+
+
+def get_catalog_freshness_telemetry(session: Session) -> dict[str, Any]:
+    """Return global catalog price refresh telemetry for /health & clients."""
+    last_price_sync_at = session.scalar(select(func.max(StorePrice.updated_at)))
+    tracked_prices = int(session.scalar(select(func.count(StorePrice.id))) or 0)
+    active_chains = int(
+        session.scalar(select(func.count(Store.id)).where(Store.is_active.is_(True)))
+        or 0
+    )
+    return {
+        "status": "ok",
+        "last_price_sync_at": (
+            last_price_sync_at.isoformat() if last_price_sync_at is not None else None
+        ),
+        "active_chains": active_chains,
+        "tracked_prices": tracked_prices,
+    }

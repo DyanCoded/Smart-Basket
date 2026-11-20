@@ -4,16 +4,20 @@ Usage:
     python scripts/run_scrapers.py --retailer all --dry-run
     python scripts/run_scrapers.py --retailer checkers --queries "milk,bread,eggs"
     python scripts/run_scrapers.py --retailer all --force-history
+    python scripts/run_scrapers.py --retailer all --summary-json scraper_summary.json
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -94,7 +98,12 @@ async def run_pipeline(
     session: Optional[Session] = None,
     scraper_registry: Optional[dict[str, Callable[[], BaseRetailerScraper]]] = None,
 ) -> list[PublishSummary]:
-    """Execute scrape -> normalize -> publish across selected national chains."""
+    """Execute scrape -> normalize -> publish across selected national chains.
+
+    Isolates per-retailer exceptions: if one retailer adapter fails, logs a
+    structured warning, rolls back any pending DB state for that retailer,
+    records a failed PublishSummary, and continues processing the rest.
+    """
     owns_session = session is None
     db_session = session or SessionLocal()
     summaries: list[PublishSummary] = []
@@ -102,24 +111,78 @@ async def run_pipeline(
     try:
         publisher = CatalogPublisher(db_session)
         for slug in retailer_slugs:
-            records = await scrape_and_normalize_retailer(
-                slug,
-                query_terms,
-                scraper_registry=scraper_registry,
-            )
-            summary = publisher.publish_records(
-                records,
-                retailer_slug=slug,
-                dry_run=dry_run,
-                force_history_snapshot=force_history,
-                commit=not dry_run,
-            )
-            summaries.append(summary)
+            started = time.monotonic()
+            try:
+                records = await scrape_and_normalize_retailer(
+                    slug,
+                    query_terms,
+                    scraper_registry=scraper_registry,
+                )
+                summary = publisher.publish_records(
+                    records,
+                    retailer_slug=slug,
+                    dry_run=dry_run,
+                    force_history_snapshot=force_history,
+                    commit=not dry_run,
+                )
+                summary.duration_seconds = round(time.monotonic() - started, 3)
+                summary.synced_at = datetime.now(timezone.utc)
+                summary.status = "ok"
+                summaries.append(summary)
+            except Exception as exc:  # noqa: BLE001
+                elapsed = round(time.monotonic() - started, 3)
+                if owns_session and not dry_run:
+                    try:
+                        db_session.rollback()
+                    except Exception:  # noqa: BLE001
+                        logger.debug(
+                            "[%s] Rollback after failure skipped", slug, exc_info=True
+                        )
+                error_detail = f"{type(exc).__name__}: {exc}"
+                logger.warning(
+                    "Retailer scraper failed | retailer=%s error=%s duration=%.3fs",
+                    slug,
+                    error_detail,
+                    elapsed,
+                )
+                summaries.append(
+                    PublishSummary(
+                        retailer_slug=slug,
+                        dry_run=dry_run,
+                        status="failed",
+                        error=error_detail,
+                        duration_seconds=elapsed,
+                        synced_at=datetime.now(timezone.utc),
+                    )
+                )
     finally:
         if owns_session:
             db_session.close()
 
     return summaries
+
+
+def build_telemetry_report(summaries: list[PublishSummary]) -> dict[str, Any]:
+    """Aggregate per-retailer summaries into a structured JSON telemetry payload."""
+    total = len(summaries)
+    failed = sum(1 for s in summaries if s.status == "failed")
+    succeeded = total - failed
+
+    if total > 0 and failed == total:
+        overall_status = "failed"
+    elif failed > 0:
+        overall_status = "degraded"
+    else:
+        overall_status = "ok"
+
+    return {
+        "overall_status": overall_status,
+        "total_retailers": total,
+        "succeeded": succeeded,
+        "failed": failed,
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "retailers": [s.model_dump(mode="json") for s in summaries],
+    }
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -147,10 +210,25 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Append price_history snapshots even when prices have not changed.",
     )
+    parser.add_argument(
+        "--summary-json",
+        default=None,
+        help="Optional file path to export structured JSON run telemetry.",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Exit non-zero if any retailer fails (default: fail only if all fail).",
+    )
     return parser
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(
+    argv: Optional[list[str]] = None,
+    *,
+    session: Optional[Session] = None,
+    scraper_registry: Optional[dict[str, Callable[[], BaseRetailerScraper]]] = None,
+) -> int:
     logging.basicConfig(
         level=logging.INFO,
         format="%(levelname)s [%(name)s] %(message)s",
@@ -167,7 +245,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     print(f"SmartBasket Scraper Pipeline ({mode_label})")
     print(f"Retailers : {', '.join(target_retailers)}")
     print(f"Queries   : {', '.join(query_terms) or '(all)'}")
-    print("-" * 72)
+    print("-" * 78)
 
     summaries = asyncio.run(
         run_pipeline(
@@ -175,20 +253,58 @@ def main(argv: Optional[list[str]] = None) -> int:
             query_terms,
             dry_run=args.dry_run,
             force_history=args.force_history,
+            session=session,
+            scraper_registry=scraper_registry,
         )
     )
 
     for summary in summaries:
-        print(
-            f"  {summary.retailer_slug:<16} | processed={summary.records_processed} "
-            f"matched={summary.products_matched} created={summary.products_created} "
-            f"inserted={summary.prices_inserted} updated={summary.prices_updated} "
-            f"unchanged={summary.prices_unchanged} history={summary.history_appended} "
-            f"skipped={summary.skipped}"
-        )
+        if summary.status == "failed":
+            print(
+                f"  {summary.retailer_slug:<16} | STATUS=FAILED "
+                f"duration={summary.duration_seconds:.2f}s "
+                f"error={summary.error}"
+            )
+        else:
+            print(
+                f"  {summary.retailer_slug:<16} | STATUS=OK "
+                f"processed={summary.records_processed} "
+                f"matched={summary.products_matched} "
+                f"created={summary.products_created} "
+                f"inserted={summary.prices_inserted} "
+                f"updated={summary.prices_updated} "
+                f"unchanged={summary.prices_unchanged} "
+                f"history={summary.history_appended} "
+                f"skipped={summary.skipped} "
+                f"duration={summary.duration_seconds:.2f}s"
+            )
 
-    print("-" * 72)
-    print("Pipeline run completed successfully.")
+    report = build_telemetry_report(summaries)
+    if args.summary_json:
+        out_path = Path(args.summary_json)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+    print("-" * 78)
+    overall = report["overall_status"]
+    if overall == "failed":
+        print(
+            f"Pipeline run FAILED: 0/{report['total_retailers']} retailers succeeded."
+        )
+        return 1
+    if overall == "degraded":
+        failed_slugs = [s.retailer_slug for s in summaries if s.status == "failed"]
+        print(
+            f"Pipeline run PARTIAL SUCCESS (DEGRADED): "
+            f"{report['succeeded']}/{report['total_retailers']} succeeded; "
+            f"failed={failed_slugs}"
+        )
+        return 1 if args.strict else 0
+
+    print(
+        f"Pipeline run completed successfully: "
+        f"{report['succeeded']}/{report['total_retailers']} retailers synced."
+    )
     return 0
 
 

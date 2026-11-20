@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -16,6 +16,7 @@ export default function SmartBasketScreen() {
   const [comparison, setComparison] =
     useState<HouseholdBasketComparisonResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [smartModeEnabled, setSmartModeEnabled] = useState<boolean>(true);
 
   const refreshComparison = useCallback(async () => {
     setIsLoading(true);
@@ -85,43 +86,84 @@ export default function SmartBasketScreen() {
         </ThemedView>
       )}
 
-      {optimalSplit && optimalSplit.cheaper_than_single_store && (
+      {calc && (
         <ThemedView style={styles.splitCard}>
-          <View style={styles.splitHeader}>
-            <ThemedText style={styles.splitTag}>
-              SMART MODE: 2-CHAIN SPLIT
-            </ThemedText>
-            <ThemedText style={styles.savingsBadge}>
-              Save R{optimalSplit.savings_amount} ({optimalSplit.savings_percentage}%)
-            </ThemedText>
+          <View style={styles.smartModeToggleRow}>
+            <View style={styles.smartModeTitleGroup}>
+              <ThemedText style={styles.splitTag}>
+                SMART MODE (SPLIT BASKET)
+              </ThemedText>
+              <ThemedText style={styles.retailerSub}>
+                Split across 2 national chains for lowest per-item prices
+              </ThemedText>
+            </View>
+            <Switch
+              value={smartModeEnabled}
+              onValueChange={setSmartModeEnabled}
+              trackColor={{ false: '#555558', true: '#0A7EA4' }}
+              thumbColor="#FFFFFF"
+            />
           </View>
 
-          <View style={styles.priceRow}>
-            <ThemedText type="subtitle">Optimal Split Total</ThemedText>
-            <ThemedText type="title" style={styles.splitPrice}>
-              R{optimalSplit.total_price}
-            </ThemedText>
-          </View>
+          {smartModeEnabled ? (
+            optimalSplit && optimalSplit.cheaper_than_single_store ? (
+              <View style={styles.splitBody}>
+                <View style={styles.splitHeader}>
+                  <ThemedText type="subtitle">Smart Mode Total</ThemedText>
+                  <ThemedText style={styles.savingsBadge}>
+                    Save R{optimalSplit.savings_amount} (
+                    {optimalSplit.savings_percentage}%) vs. #1{' '}
+                    {cheapestSingle?.retailer_name ?? 'Chain'}
+                  </ThemedText>
+                </View>
 
-          {optimalSplit.stores.map((allocation) => (
-            <View key={allocation.store_id} style={styles.allocationBox}>
-              <View style={styles.allocationHeader}>
-                <ThemedText type="defaultSemiBold">
-                  {allocation.retailer_name}
-                </ThemedText>
-                <ThemedText type="defaultSemiBold">
-                  Subtotal: R{allocation.subtotal}
+                <View style={styles.priceRow}>
+                  <ThemedText style={styles.retailerSub}>
+                    Combined 2-chain total (was R
+                    {cheapestSingle?.total_price ?? optimalSplit.total_price})
+                  </ThemedText>
+                  <ThemedText type="title" style={styles.splitPrice}>
+                    R{optimalSplit.total_price}
+                  </ThemedText>
+                </View>
+
+                {optimalSplit.stores.map((allocation) => (
+                  <View key={allocation.store_id} style={styles.allocationBox}>
+                    <View style={styles.allocationHeader}>
+                      <ThemedText type="defaultSemiBold">
+                        {allocation.retailer_name}
+                      </ThemedText>
+                      <ThemedText type="defaultSemiBold">
+                        Subtotal: R{allocation.subtotal}
+                      </ThemedText>
+                    </View>
+                    {allocation.items.map((item) => (
+                      <ThemedText
+                        key={item.product_id}
+                        style={styles.lineItemText}>
+                        • {item.product_name} ({item.quantity}x @ R
+                        {item.unit_price}) = R{item.subtotal}
+                        {item.is_promotional ? ' [PROMO]' : ''}
+                      </ThemedText>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.singleOptimalBadge}>
+                <ThemedText style={styles.singleOptimalText}>
+                  Single-store shopping at{' '}
+                  {cheapestSingle?.retailer_name ?? 'the #1 chain'} is already
+                  optimal for every item in this basket.
                 </ThemedText>
               </View>
-              {allocation.items.map((item) => (
-                <ThemedText key={item.product_id} style={styles.lineItemText}>
-                  • {item.product_name} ({item.quantity}x @ R{item.unit_price}) = R
-                  {item.subtotal}
-                  {item.is_promotional ? ' [PROMO]' : ''}
-                </ThemedText>
-              ))}
-            </View>
-          ))}
+            )
+          ) : (
+            <ThemedText style={styles.retailerSub}>
+              Enable Smart Mode to inspect 2-chain split recommendations and
+              potential savings.
+            </ThemedText>
+          )}
         </ThemedView>
       )}
 
@@ -223,10 +265,39 @@ const styles = StyleSheet.create({
     borderColor: '#0A7EA4',
     gap: 10,
   },
+  smartModeToggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  smartModeTitleGroup: {
+    flex: 1,
+    gap: 2,
+  },
+  splitBody: {
+    gap: 10,
+    paddingTop: 4,
+  },
   splitHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  singleOptimalBadge: {
+    backgroundColor: '#243B32',
+    borderWidth: 1,
+    borderColor: '#1B7F4C',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  singleOptimalText: {
+    fontSize: 12,
+    color: '#A7F3D0',
+    fontWeight: '600',
   },
   splitTag: {
     fontSize: 11,

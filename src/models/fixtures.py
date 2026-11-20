@@ -301,7 +301,7 @@ PRODUCTS: list[dict[str, Any]] = [
 # Each entry maps product_key -> { chain_key: (price, is_promotional) }
 _CHAIN_PRICE_MATRIX: dict[str, dict[str, tuple[str, bool]]] = {
     "clover-milk-2l": {
-        "checkers": ("34.99", True),
+        "checkers": ("31.99", True),
         "woolworths-food": ("42.99", False),
         "pick-n-pay": ("38.99", False),
         "spar": ("40.49", False),
@@ -309,8 +309,8 @@ _CHAIN_PRICE_MATRIX: dict[str, dict[str, tuple[str, bool]]] = {
     },
     "farmer-brown-eggs-18pk": {
         "checkers": ("64.99", False),
-        "woolworths-food": ("62.99", True),
-        "pick-n-pay": ("63.99", False),
+        "woolworths-food": ("62.99", False),
+        "pick-n-pay": ("54.99", True),
         "spar": ("66.49", False),
         "shoprite": ("58.99", False),
     },
@@ -469,7 +469,7 @@ def generate_price_history_fixtures(
             "id": seed_uuid("hist:milk:checkers:5d"),
             "store_id": seed_uuid("store:checkers"),
             "product_id": seed_uuid("product:clover-milk-2l"),
-            "price": Decimal("34.99"),
+            "price": Decimal("31.99"),
             "is_promotional": True,
             "recorded_at": now - timedelta(days=5),
         },

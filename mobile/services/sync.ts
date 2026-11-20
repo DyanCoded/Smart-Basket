@@ -189,11 +189,12 @@ export async function syncAndCalculateSmartBasket(
     }));
   }
 
-  // Ensure default staple items exist for comparison if none marked low yet
+  // Ensure default 3-item staple basket exists for comparison if none marked low yet
   if (calcRequestItems.length === 0) {
     calcRequestItems = [
       { product_id: SEED_CATALOG_PRODUCTS.MILK_2L.id, quantity: '2.00' },
       { product_id: SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.id, quantity: '1.00' },
+      { product_id: SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.id, quantity: '1.00' },
     ];
   }
 
@@ -227,7 +228,7 @@ function buildOfflineFallbackCalculation(
       store_name: 'Shoprite',
       branch_code: null,
       retailer_name: 'Shoprite',
-      total_price: '83.97',
+      total_price: '142.96',
       is_complete_match: true,
       items_available_count: count,
       total_items_count: count,
@@ -248,41 +249,65 @@ function buildOfflineFallbackCalculation(
           subtotal: '15.99',
           is_promotional: false,
         },
+        {
+          product_id: SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.id,
+          product_name: SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.name,
+          quantity: '1.00',
+          unit_price: '58.99',
+          subtotal: '58.99',
+          is_promotional: false,
+        },
       ],
       missing_items: [],
     },
     optimal_split: {
       stores: [
         {
-          store_id: 'd1b6fc61-ff2b-5935-8d92-9eec487eeaae',
-          store_name: 'Shoprite',
-          retailer_name: 'Shoprite',
-          subtotal: '83.97',
+          store_id: '26f7a89e-0e58-56e3-a225-8c7310382985',
+          store_name: 'Checkers',
+          retailer_name: 'Checkers',
+          subtotal: '63.98',
           items: [
             {
               product_id: SEED_CATALOG_PRODUCTS.MILK_2L.id,
               product_name: SEED_CATALOG_PRODUCTS.MILK_2L.name,
               quantity: '2.00',
-              unit_price: '33.99',
-              subtotal: '67.98',
-              is_promotional: false,
+              unit_price: '31.99',
+              subtotal: '63.98',
+              is_promotional: true,
             },
+          ],
+        },
+        {
+          store_id: 'cd86c9b4-176c-551e-aebc-b91bfdce86c1',
+          store_name: 'Pick n Pay',
+          retailer_name: 'Pick n Pay',
+          subtotal: '71.98',
+          items: [
             {
               product_id: SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.id,
               product_name: SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.name,
               quantity: '1.00',
-              unit_price: '15.99',
-              subtotal: '15.99',
+              unit_price: '16.99',
+              subtotal: '16.99',
               is_promotional: false,
+            },
+            {
+              product_id: SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.id,
+              product_name: SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.name,
+              quantity: '1.00',
+              unit_price: '54.99',
+              subtotal: '54.99',
+              is_promotional: true,
             },
           ],
         },
       ],
-      total_price: '83.97',
-      savings_amount: '0.00',
-      savings_percentage: '0.00',
+      total_price: '135.96',
+      savings_amount: '7.00',
+      savings_percentage: '4.90',
       is_complete_match: true,
-      cheaper_than_single_store: false,
+      cheaper_than_single_store: true,
     },
     ranked_stores: [
       {
@@ -290,7 +315,7 @@ function buildOfflineFallbackCalculation(
         store_name: 'Shoprite',
         branch_code: null,
         retailer_name: 'Shoprite',
-        total_price: '83.97',
+        total_price: '142.96',
         is_complete_match: true,
         items_available_count: count,
         total_items_count: count,
@@ -302,7 +327,7 @@ function buildOfflineFallbackCalculation(
         store_name: 'Checkers',
         branch_code: null,
         retailer_name: 'Checkers',
-        total_price: '87.97',
+        total_price: '146.96',
         is_complete_match: true,
         items_available_count: count,
         total_items_count: count,
@@ -314,7 +339,7 @@ function buildOfflineFallbackCalculation(
         store_name: 'Pick n Pay',
         branch_code: null,
         retailer_name: 'Pick n Pay',
-        total_price: '94.97',
+        total_price: '149.96',
         is_complete_match: true,
         items_available_count: count,
         total_items_count: count,
@@ -326,7 +351,7 @@ function buildOfflineFallbackCalculation(
         store_name: 'SPAR',
         branch_code: null,
         retailer_name: 'SPAR',
-        total_price: '99.47',
+        total_price: '165.96',
         is_complete_match: true,
         items_available_count: count,
         total_items_count: count,
@@ -338,7 +363,7 @@ function buildOfflineFallbackCalculation(
         store_name: 'Woolworths Food',
         branch_code: null,
         retailer_name: 'Woolworths Food',
-        total_price: '105.97',
+        total_price: '168.96',
         is_complete_match: true,
         items_available_count: count,
         total_items_count: count,

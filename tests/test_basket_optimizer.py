@@ -143,6 +143,47 @@ def test_basket_calculation_smart_split_optimization(
         assert Decimal(str(split["savings_percentage"])) > Decimal("0.00")
 
 
+def test_basket_calculation_three_staple_replenishment_split_savings(
+    client: TestClient, raw_catalog_fixtures
+):
+    """Verify 3-item staple basket (Milk, Bread, Eggs) yields positive split savings."""
+    prods = raw_catalog_fixtures["products"]
+    milk = next(p for p in prods if "Milk" in p["name"])
+    bread = next(p for p in prods if "White Bread" in p["name"])
+    eggs = next(p for p in prods if "Eggs" in p["name"])
+
+    payload = {
+        "items": [
+            {"product_id": str(milk["id"]), "quantity": "2.00"},
+            {"product_id": str(bread["id"]), "quantity": "1.00"},
+            {"product_id": str(eggs["id"]), "quantity": "1.00"},
+        ]
+    }
+
+    response = client.post("/api/v1/baskets/calculate", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+
+    cheapest_single = data["cheapest_single_store"]
+    split = data["optimal_split"]
+
+    assert cheapest_single is not None
+    assert split is not None
+    assert split["cheaper_than_single_store"] is True
+    assert len(split["stores"]) == 2
+    assert Decimal(str(split["savings_amount"])) > Decimal("0.00")
+    assert Decimal(str(split["total_price"])) < Decimal(
+        str(cheapest_single["total_price"])
+    )
+    assert Decimal(str(split["savings_amount"])) == (
+        Decimal(str(cheapest_single["total_price"]))
+        - Decimal(str(split["total_price"]))
+    )
+    # All participating chains must use canonical retailer names
+    for alloc in split["stores"]:
+        assert alloc["store_name"] == alloc["retailer_name"]
+
+
 def test_basket_calculation_quantity_multiplication(
     client: TestClient, raw_catalog_fixtures
 ):

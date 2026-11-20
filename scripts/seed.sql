@@ -62,14 +62,14 @@ INSERT INTO products (id, category_id, name, brand, barcode, unit_size, unit_typ
 -- 5. Chain-Level Active Prices (Full Catalog across 5 Retailers)
 --------------------------------------------------------------------------------
 INSERT INTO store_prices (id, store_id, product_id, price, is_promotional, is_in_stock, updated_at) VALUES
-  ('e8f74067-213f-5463-a448-6a58379f3c0b', '26f7a89e-0e58-56e3-a225-8c7310382985', '6e2941e3-033d-5768-8143-5e7ebc24b874', 34.99, TRUE, TRUE, NOW()),
+  ('e8f74067-213f-5463-a448-6a58379f3c0b', '26f7a89e-0e58-56e3-a225-8c7310382985', '6e2941e3-033d-5768-8143-5e7ebc24b874', 31.99, TRUE, TRUE, NOW()),
   ('fced4a8b-cd83-5540-88e3-755d7c7e4bf4', '30c7639b-d34c-597b-9399-68e3ff9de7a7', '6e2941e3-033d-5768-8143-5e7ebc24b874', 42.99, FALSE, TRUE, NOW()),
   ('e9f464d4-a29e-5255-b748-69ea99e3330a', 'cd86c9b4-176c-551e-aebc-b91bfdce86c1', '6e2941e3-033d-5768-8143-5e7ebc24b874', 38.99, FALSE, TRUE, NOW()),
   ('a5a05db1-9eb3-51ff-aa40-2c9cb88b0b52', 'c9753b0f-5341-5001-a2dc-3996ff85a7bc', '6e2941e3-033d-5768-8143-5e7ebc24b874', 40.49, FALSE, TRUE, NOW()),
   ('1957da2d-c3f8-5db5-8bf5-43634c7dee61', 'd1b6fc61-ff2b-5935-8d92-9eec487eeaae', '6e2941e3-033d-5768-8143-5e7ebc24b874', 33.99, FALSE, TRUE, NOW()),
   ('c90f4355-8b43-5839-a25f-ea7cafb738a2', '26f7a89e-0e58-56e3-a225-8c7310382985', '4ca9f9c4-dea2-5f16-8ffb-4ec70ea08382', 64.99, FALSE, TRUE, NOW()),
-  ('b8c0dcdc-a14e-5f11-805b-cd40969fab1c', '30c7639b-d34c-597b-9399-68e3ff9de7a7', '4ca9f9c4-dea2-5f16-8ffb-4ec70ea08382', 62.99, TRUE, TRUE, NOW()),
-  ('0405c097-b10e-5ff7-8d02-20fc5187e590', 'cd86c9b4-176c-551e-aebc-b91bfdce86c1', '4ca9f9c4-dea2-5f16-8ffb-4ec70ea08382', 63.99, FALSE, TRUE, NOW()),
+  ('b8c0dcdc-a14e-5f11-805b-cd40969fab1c', '30c7639b-d34c-597b-9399-68e3ff9de7a7', '4ca9f9c4-dea2-5f16-8ffb-4ec70ea08382', 62.99, FALSE, TRUE, NOW()),
+  ('0405c097-b10e-5ff7-8d02-20fc5187e590', 'cd86c9b4-176c-551e-aebc-b91bfdce86c1', '4ca9f9c4-dea2-5f16-8ffb-4ec70ea08382', 54.99, TRUE, TRUE, NOW()),
   ('1fd81de6-1c53-555a-a116-cc5e7be95511', 'c9753b0f-5341-5001-a2dc-3996ff85a7bc', '4ca9f9c4-dea2-5f16-8ffb-4ec70ea08382', 66.49, FALSE, TRUE, NOW()),
   ('2c8c296c-6fa4-5013-aa04-8ee89f6bdbf7', 'd1b6fc61-ff2b-5935-8d92-9eec487eeaae', '4ca9f9c4-dea2-5f16-8ffb-4ec70ea08382', 58.99, FALSE, TRUE, NOW()),
   ('16afddb9-e4dc-57ac-a38f-54d6696bc14f', '26f7a89e-0e58-56e3-a225-8c7310382985', '80db6402-f52e-581b-9e8b-6d5855feaf0d', 79.99, FALSE, TRUE, NOW()),
@@ -157,13 +157,13 @@ INSERT INTO store_prices (id, store_id, product_id, price, is_promotional, is_in
 -- 6. Price History (Simulated 30-60 Day Tracking)
 --------------------------------------------------------------------------------
 INSERT INTO price_history (id, store_id, product_id, price, is_promotional, recorded_at) VALUES
-  ('c16e8c21-dbcf-50cb-bf6a-7f2258af763f', '26f7a89e-0e58-56e3-a225-8c7310382985', '6e2941e3-033d-5768-8143-5e7ebc24b874', 36.99, FALSE, '2026-09-21T16:13:31.130015+00:00'),
-  ('a3698f4b-7b4f-57ad-b45c-071d50b134c0', '26f7a89e-0e58-56e3-a225-8c7310382985', '6e2941e3-033d-5768-8143-5e7ebc24b874', 38.99, FALSE, '2026-10-21T16:13:31.130015+00:00'),
-  ('5eb2f75c-f349-5bb7-9c32-b96d7b154256', '26f7a89e-0e58-56e3-a225-8c7310382985', '6e2941e3-033d-5768-8143-5e7ebc24b874', 34.99, TRUE, '2026-11-15T16:13:31.130015+00:00'),
-  ('457a931a-1d5e-585b-982a-407f8f745b29', '30c7639b-d34c-597b-9399-68e3ff9de7a7', '16d3be61-6fd7-59de-9427-9a63ca022acb', 84.99, FALSE, '2026-09-21T16:13:31.130015+00:00'),
-  ('a055cdf4-0103-50bf-90d6-a8c07be869d2', '30c7639b-d34c-597b-9399-68e3ff9de7a7', '16d3be61-6fd7-59de-9427-9a63ca022acb', 86.99, FALSE, '2026-10-16T16:13:31.130015+00:00'),
-  ('c1f5e317-dc53-5978-8303-c929d2016184', '30c7639b-d34c-597b-9399-68e3ff9de7a7', '16d3be61-6fd7-59de-9427-9a63ca022acb', 89.99, FALSE, '2026-11-10T16:13:31.130015+00:00'),
-  ('a04ae326-5b96-582a-aece-a8fa288f1b82', 'cd86c9b4-176c-551e-aebc-b91bfdce86c1', 'c30077d1-ba29-5539-bec1-bcdedb26ab85', 109.99, FALSE, '2026-10-06T16:13:31.130015+00:00'),
-  ('a9183a34-a9a0-5cc2-bca7-c9e82aa241d8', 'cd86c9b4-176c-551e-aebc-b91bfdce86c1', 'c30077d1-ba29-5539-bec1-bcdedb26ab85', 114.99, FALSE, '2026-11-05T16:13:31.130015+00:00'),
-  ('ee555682-f70a-5bbc-9a20-54b56fe30ed8', 'd1b6fc61-ff2b-5935-8d92-9eec487eeaae', 'b7bdd5c6-6434-56c1-8e16-08b52ef508e4', 38.99, FALSE, '2026-10-01T16:13:31.130015+00:00'),
-  ('448c9d78-79bf-52fa-a43f-a9433af70683', 'd1b6fc61-ff2b-5935-8d92-9eec487eeaae', 'b7bdd5c6-6434-56c1-8e16-08b52ef508e4', 41.99, FALSE, '2026-10-31T16:13:31.130015+00:00');
+  ('c16e8c21-dbcf-50cb-bf6a-7f2258af763f', '26f7a89e-0e58-56e3-a225-8c7310382985', '6e2941e3-033d-5768-8143-5e7ebc24b874', 36.99, FALSE, '2026-09-21T17:05:43.773775+00:00'),
+  ('a3698f4b-7b4f-57ad-b45c-071d50b134c0', '26f7a89e-0e58-56e3-a225-8c7310382985', '6e2941e3-033d-5768-8143-5e7ebc24b874', 38.99, FALSE, '2026-10-21T17:05:43.773775+00:00'),
+  ('5eb2f75c-f349-5bb7-9c32-b96d7b154256', '26f7a89e-0e58-56e3-a225-8c7310382985', '6e2941e3-033d-5768-8143-5e7ebc24b874', 31.99, TRUE, '2026-11-15T17:05:43.773775+00:00'),
+  ('457a931a-1d5e-585b-982a-407f8f745b29', '30c7639b-d34c-597b-9399-68e3ff9de7a7', '16d3be61-6fd7-59de-9427-9a63ca022acb', 84.99, FALSE, '2026-09-21T17:05:43.773775+00:00'),
+  ('a055cdf4-0103-50bf-90d6-a8c07be869d2', '30c7639b-d34c-597b-9399-68e3ff9de7a7', '16d3be61-6fd7-59de-9427-9a63ca022acb', 86.99, FALSE, '2026-10-16T17:05:43.773775+00:00'),
+  ('c1f5e317-dc53-5978-8303-c929d2016184', '30c7639b-d34c-597b-9399-68e3ff9de7a7', '16d3be61-6fd7-59de-9427-9a63ca022acb', 89.99, FALSE, '2026-11-10T17:05:43.773775+00:00'),
+  ('a04ae326-5b96-582a-aece-a8fa288f1b82', 'cd86c9b4-176c-551e-aebc-b91bfdce86c1', 'c30077d1-ba29-5539-bec1-bcdedb26ab85', 109.99, FALSE, '2026-10-06T17:05:43.773775+00:00'),
+  ('a9183a34-a9a0-5cc2-bca7-c9e82aa241d8', 'cd86c9b4-176c-551e-aebc-b91bfdce86c1', 'c30077d1-ba29-5539-bec1-bcdedb26ab85', 114.99, FALSE, '2026-11-05T17:05:43.773775+00:00'),
+  ('ee555682-f70a-5bbc-9a20-54b56fe30ed8', 'd1b6fc61-ff2b-5935-8d92-9eec487eeaae', 'b7bdd5c6-6434-56c1-8e16-08b52ef508e4', 38.99, FALSE, '2026-10-01T17:05:43.773775+00:00'),
+  ('448c9d78-79bf-52fa-a43f-a9433af70683', 'd1b6fc61-ff2b-5935-8d92-9eec487eeaae', 'b7bdd5c6-6434-56c1-8e16-08b52ef508e4', 41.99, FALSE, '2026-10-31T17:05:43.773775+00:00');

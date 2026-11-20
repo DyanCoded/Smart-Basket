@@ -22,10 +22,18 @@ from src.scrapers.publisher import (
     publish_normalized_records,
     resolve_canonical_store,
 )
+from src.scrapers.retailers import (
+    CheckersScraper,
+    ShopriteGroupBaseScraper,
+    ShopriteScraper,
+)
 
 __all__ = [
     "BaseRetailerScraper",
     "PlaceholderFixtureScraper",
+    "ShopriteGroupBaseScraper",
+    "CheckersScraper",
+    "ShopriteScraper",
     "CanonicalRetailerSlug",
     "CanonicalUnitType",
     "RawScrapedItem",

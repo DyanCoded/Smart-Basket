@@ -29,6 +29,10 @@ from src.scrapers.base import (  # noqa: E402
 from src.scrapers.models import NormalizedPriceRecord, PublishSummary  # noqa: E402
 from src.scrapers.normalizer import normalize_scraped_item  # noqa: E402
 from src.scrapers.publisher import CatalogPublisher  # noqa: E402
+from src.scrapers.retailers.shoprite_group import (  # noqa: E402
+    CheckersScraper,
+    ShopriteScraper,
+)
 
 logger = logging.getLogger("smart_basket.scrapers")
 
@@ -41,19 +45,29 @@ CANONICAL_RETAILERS: tuple[str, ...] = (
 )
 
 # Registry of retailer scraper factories.
-# PLACEHOLDER_: Uses PlaceholderFixtureScraper until live adapters (#20-#24) land.
+# Live adapters registered for Shoprite & Checkers (#20).
+# PLACEHOLDER_: Pick n Pay, Woolworths Food & SPAR use PlaceholderFixtureScraper
+# until their live adapters (#21-#23) land.
 SCRAPER_REGISTRY: dict[str, Callable[[], BaseRetailerScraper]] = {
-    slug: (lambda s=slug: PlaceholderFixtureScraper(retailer_slug=s))
-    for slug in CANONICAL_RETAILERS
+    "shoprite": ShopriteScraper,
+    "checkers": CheckersScraper,
+    "pick-n-pay": lambda: PlaceholderFixtureScraper(retailer_slug="pick-n-pay"),
+    "woolworths-food": lambda: PlaceholderFixtureScraper(
+        retailer_slug="woolworths-food"
+    ),
+    "spar": lambda: PlaceholderFixtureScraper(retailer_slug="spar"),
 }
 
 
 async def scrape_and_normalize_retailer(
     retailer_slug: str,
     query_terms: list[str],
+    *,
+    scraper_registry: Optional[dict[str, Callable[[], BaseRetailerScraper]]] = None,
 ) -> list[NormalizedPriceRecord]:
     """Run a single retailer scraper and normalize all extracted raw items."""
-    factory = SCRAPER_REGISTRY.get(retailer_slug)
+    registry = scraper_registry if scraper_registry is not None else SCRAPER_REGISTRY
+    factory = registry.get(retailer_slug)
     if factory is None:
         raise ValueError(f"Unsupported retailer slug: {retailer_slug!r}")
 
@@ -82,6 +96,7 @@ async def run_pipeline(
     dry_run: bool = False,
     force_history: bool = False,
     session: Optional[Session] = None,
+    scraper_registry: Optional[dict[str, Callable[[], BaseRetailerScraper]]] = None,
 ) -> list[PublishSummary]:
     """Execute scrape -> normalize -> publish across selected national chains."""
     owns_session = session is None
@@ -91,7 +106,11 @@ async def run_pipeline(
     try:
         publisher = CatalogPublisher(db_session)
         for slug in retailer_slugs:
-            records = await scrape_and_normalize_retailer(slug, query_terms)
+            records = await scrape_and_normalize_retailer(
+                slug,
+                query_terms,
+                scraper_registry=scraper_registry,
+            )
             summary = publisher.publish_records(
                 records,
                 retailer_slug=slug,

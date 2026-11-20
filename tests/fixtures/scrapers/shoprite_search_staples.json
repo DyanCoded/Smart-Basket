@@ -1,0 +1,74 @@
+{
+  "_fixture_note": "PLACEHOLDER_ offline JSON catalog response fixture for Shoprite (Shoprite Group SAP Commerce OCC API)",
+  "pagination": {
+    "currentPage": 0,
+    "totalPages": 1,
+    "totalResults": 5
+  },
+  "products": [
+    {
+      "code": "10125678EA",
+      "ean": "6001299011011",
+      "name": "Clover Full Cream Fresh Milk 2 Litre",
+      "brand": "Clover",
+      "categoryPath": ["Food", "Dairy & Eggs", "Fresh Milk"],
+      "packSize": "2000ml",
+      "price": {
+        "currencyIso": "ZAR",
+        "value": 33.99,
+        "formattedValue": "R33.99"
+      },
+      "isPromotional": false,
+      "url": "/All-Departments/Food/Milk-Butter-and-Eggs/Clover-Full-Cream-Fresh-Milk-2L/p/10125678EA"
+    },
+    {
+      "code": "10129988EA",
+      "ean": "6001299011028",
+      "name": "Farmer Brown Large Eggs 18 Pack",
+      "brand": "Farmer Brown",
+      "category": "Food/Dairy & Eggs/Eggs",
+      "unitOfMeasure": "18 pack",
+      "regularPrice": {
+        "formattedValue": "R58.99"
+      },
+      "multiBuyPromo": "2 FOR R109.98",
+      "url": "/All-Departments/Food/Milk-Butter-and-Eggs/Farmer-Brown-Large-Eggs-18pk/p/10129988EA"
+    },
+    {
+      "code": "10130012EA",
+      "barcode": "6001299011059",
+      "name": "Albany Superior Sliced White Bread 700g",
+      "brand": "Albany",
+      "department": "Bakery",
+      "packSize": "700g",
+      "price": "R15.99 / ea",
+      "url": "/All-Departments/Food/Bakery/Albany-White-Bread-700g/p/10130012EA"
+    },
+    {
+      "code": "10142001EA",
+      "name": "Ritebrand Washed Potatoes 2kg",
+      "brand": "Ritebrand",
+      "department": "Fresh Produce",
+      "packSize": "2kg",
+      "price": {
+        "formattedValue": "R29.99"
+      },
+      "xtraSavingsPrice": {
+        "formattedValue": "R24.99"
+      },
+      "url": "/All-Departments/Food/Fresh-Food/Potatoes-2kg/p/10142001EA"
+    },
+    {
+      "code": "10190222EA",
+      "gtin": "6001087361200",
+      "name": "Sunlight Regular Dishwashing Liquid 750ml",
+      "brand": "Sunlight",
+      "department": "Household/Cleaning",
+      "packSize": "750ml",
+      "price": {
+        "formattedValue": "R34.99"
+      },
+      "url": "/All-Departments/Household/Cleaning/Sunlight-Dishwashing-Liquid-750ml/p/10190222EA"
+    }
+  ]
+}

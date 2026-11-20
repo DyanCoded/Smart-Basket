@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from scripts.run_scrapers import CANONICAL_RETAILERS, run_pipeline
 from src.models.entities import PriceHistory, Product, StorePrice
-from src.scrapers.base import BaseRetailerScraper
+from src.scrapers.base import BaseRetailerScraper, PlaceholderFixtureScraper
 from src.scrapers.models import NormalizedPriceRecord, RawScrapedItem
 from src.scrapers.normalizer import (
     clean_barcode,
@@ -492,12 +492,18 @@ def test_cli_pipeline_dry_run_all_five_chains(db_session: Session):
     initial_products = db_session.scalar(select(func.count(Product.id)))
     initial_history = db_session.scalar(select(func.count(PriceHistory.id)))
 
+    offline_registry = {
+        slug: (lambda s=slug: PlaceholderFixtureScraper(retailer_slug=s))
+        for slug in CANONICAL_RETAILERS
+    }
+
     summaries = asyncio.run(
         run_pipeline(
             list(CANONICAL_RETAILERS),
             ["milk", "bread", "eggs"],
             dry_run=True,
             session=db_session,
+            scraper_registry=offline_registry,
         )
     )
 

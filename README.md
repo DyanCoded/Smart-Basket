@@ -8,7 +8,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg?logo=postgresql)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D.svg?logo=redis)](https://redis.io/)
 [![Expo](https://img.shields.io/badge/Expo_SDK-58-000020.svg?logo=expo)](https://expo.dev/)
-[![Release](https://img.shields.io/badge/release-v1.0.0-green.svg)](docs/RELEASE_NOTES_v1.0.0.md)
+[![Release](https://img.shields.io/badge/release-v2.0.0-green.svg)](docs/RELEASE_NOTES_v2.0.0.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
@@ -21,7 +21,7 @@ Instead of manually rebuilding shopping lists every week and hunting across supe
 1. **Auto-Basket Replenishment:** The item is automatically upserted into the household's active Smart Basket (`basket_items`).
 2. **Real-Time Household Sync:** Redis Pub/Sub broadcasts `ITEM_UPDATED` / `ITEM_DELETED` events over WebSockets (`WS /api/v1/homes/{home_id}/ws`) to all connected family devices.
 3. **Buyer Push Alerts:** Designated household `buyer` members receive asynchronous Firebase Cloud Messaging (FCM) notifications.
-4. **Multi-Store Price Optimization:** Shoppers immediately compare the **Cheapest Single Store** against the **Optimal 2-Store Split** across **Checkers**, **Woolworths Food**, **Pick n Pay**, **SPAR**, and **Shoprite**.
+4. **Opt-In Price Comparison & Smart Mode Optimization:** Shoppers select which of the 5 national chains (**Checkers**, **Woolworths Food**, **Pick n Pay**, **SPAR**, **Shoprite**) to include via the **Store Selection Checklist** and toggle **Smart Mode (Split Basket)** to compare the **Cheapest National Chain** against the optimal multi-chain split.
 
 ---
 
@@ -114,7 +114,7 @@ Smart-Basket/
 │   └── types/                    # TypeScript Interfaces Matching FastAPI Pydantic Schemas
 ├── scripts/                      # Seed Fixtures, OpenAPI Exporter & Pre-Push Check Runner
 ├── docs/                         # ADRs (DECISIONS.md), Domain Model, Retrospective & Specs
-└── tests/                        # 92 Pytest Unit, Contract & Integration Tests
+└── tests/                        # 97 Pytest Unit, Contract & Integration Tests
 ```
 
 ---
@@ -210,10 +210,10 @@ npx expo start --clear
 - Search universal grocery items across categories, brands, and standard packaging sizes (e.g. 2L, 500g, 1kg).
 - Barcode/EAN-13 lookups and normalized unit pricing ($Price / Unit$).
 
-### 2. Multi-Store Price Comparison & Basket Optimization (Journey 2)
-- **Single-Store Ranking:** Calculates total basket cost per retailer to identify the cheapest single location.
-- **Smart Mode (2-Store Split):** Evaluates multi-store splits where buying staple items at two different stores yields lower total costs than any single store.
-- **Missing Item Handling:** Alerts users if a specific store branch lacks an item in their basket, reporting partial subtotals and missing item lists.
+### 2. National Chain Price Comparison & Smart Mode Optimization (Journey 2)
+- **Store Selection Checklist:** Shoppers opt in to whichever of the 5 national chains (**Shoprite**, **Checkers**, **Pick n Pay**, **SPAR**, **Woolworths Food**) they want to include via `store_ids` or `retailer_slugs` filtering (keeping at least 1 chain selected).
+- **Single-Chain Ranking:** Calculates total basket cost per selected retailer to identify the cheapest national chain without branch location or store inventory noise.
+- **Smart Mode (Multi-Chain Split):** Evaluates optimal subsets across the selected chains (`1..len(selected_chains)`), breaking ties by fewest chains used, to maximize Rand savings compared to the #1 single chain.
 - **Exact Decimal Math:** All financial calculations utilize standard `Decimal` arithmetic (`NUMERIC(10, 2)`) to guarantee zero floating-point drift.
 
 ### 3. Price History Tracking & Intelligence (Journey 3)
@@ -237,9 +237,9 @@ npx expo start --clear
 
 Key architectural choices and design trade-offs across Phase 1 and Phase 2 include:
 
-1. **Chain-Level Price Tracking without Branch Inventory Overhead (ADR-001 to ADR-005):**
-   - **Decision:** Price tracking is modeled across 5 major national supermarket chains—**Checkers**, **Woolworths Food**, **Pick n Pay**, **SPAR**, and **Shoprite**—with branch-level representations and bounded $O(B \cdot S)$ 2-store split optimization.
-   - **Trade-off:** Avoids volatile per-shelf SKU counters across thousands of physical stores while keeping multi-store split calculations under $15\text{ ms}$.
+1. **National Chain-Level Price Tracking without Branch Inventory Overhead (ADR-001 to ADR-005, ADR-011 & ADR-012):**
+   - **Decision:** Price tracking is modeled strictly across **5 canonical national supermarket chains**—**Checkers**, **Woolworths Food**, **Pick n Pay**, **SPAR**, and **Shoprite**—with full catalog coverage across all 5 chains (`18 products × 5 chains = 90 active chain prices`), optional `store_ids`/`retailer_slugs` checklist filtering, and exact combinatorial Smart Mode split optimization across selected chains.
+   - **Trade-off:** Eliminates duplicate branch listings and volatile per-shelf inventory counters while keeping multi-chain split calculations under $15\text{ ms}$.
 
 2. **Unified FastAPI + PostgreSQL 16 Stack over Isolated Django Service (ADR-007):**
    - **Decision:** Rather than running the original KitchenSync blueprint's separate Django + DRF + Channels microservice, we ported KitchenSync's household, pantry, and WebSocket domain directly into Smart Basket's FastAPI and SQLAlchemy 2.0 stack.
@@ -392,10 +392,11 @@ python scripts/export_openapi.py
 
 For academic review, architecture justifications, and grading artifacts:
 - **[Academic Retrospective & Technical Evaluation](docs/RETROSPECTIVE.md):** In-depth discussion of domain modeling, combinatorial complexity, indexing strategy, benchmarks, trade-offs, and Phase 2 roadmap.
-- **[Architectural Decision Records (ADR)](docs/DECISIONS.md):** Documented architectural choices and trade-offs (ADR-001 through ADR-010).
+- **[Architectural Decision Records (ADR)](docs/DECISIONS.md):** Documented architectural choices and trade-offs (ADR-001 through ADR-012).
 - **[Domain Model Specification](docs/domain-model.md):** Conceptual domain entities and normalization rules across all 12 tables.
 - **[User Journeys Specification](docs/SPECIFICATION.md):** Core personas and user workflows.
-- **[Release Notes v1.0.0](docs/RELEASE_NOTES_v1.0.0.md):** Phase 1 milestone deliverables and changelog.
+- **[Release Notes v2.0.0](docs/RELEASE_NOTES_v2.0.0.md):** Phase 2 KitchenSync pantry & mobile integration release highlights.
+- **[Release Notes v1.0.0](docs/RELEASE_NOTES_v1.0.0.md):** Phase 1 core engine release deliverables and changelog.
 
 ---
 

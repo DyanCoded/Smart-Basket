@@ -31,16 +31,28 @@ def test_basket_calculation_full_match(client: TestClient, raw_catalog_fixtures)
 
     data = response.json()
     assert data["total_items_requested"] == 3
-    assert len(data["ranked_stores"]) > 0
+    assert len(data["ranked_stores"]) == 5
 
-    # Ensure ranked stores are sorted ascending by price for complete matches
-    complete_stores = [s for s in data["ranked_stores"] if s["is_complete_match"]]
-    assert len(complete_stores) > 0
+    # Ensure all 5 national chains are returned cleanly without duplicate branches
+    expected_chains = {
+        "Checkers",
+        "Pick n Pay",
+        "SPAR",
+        "Shoprite",
+        "Woolworths Food",
+    }
+    assert {s["retailer_name"] for s in data["ranked_stores"]} == expected_chains
+    for store in data["ranked_stores"]:
+        assert store["store_name"] == store["retailer_name"]
+        assert store["branch_code"] is None
+        assert store["is_complete_match"] is True
+        assert len(store["missing_items"]) == 0
 
-    prices = [Decimal(str(s["total_price"])) for s in complete_stores]
+    # Ensure ranked chains are sorted ascending by total price
+    prices = [Decimal(str(s["total_price"])) for s in data["ranked_stores"]]
     assert prices == sorted(prices)
 
-    # Verify cheapest single store matches first complete store
+    # Verify cheapest single chain matches first ranked chain
     cheapest = data["cheapest_single_store"]
     assert cheapest is not None
     assert cheapest["is_complete_match"] is True
@@ -49,13 +61,25 @@ def test_basket_calculation_full_match(client: TestClient, raw_catalog_fixtures)
     assert len(cheapest["missing_items"]) == 0
 
 
-def test_basket_calculation_partial_availability(
-    client: TestClient, raw_catalog_fixtures
+def test_basket_calculation_ignores_stock_flag_and_covers_all_5_chains(
+    client: TestClient, db_session: Session, raw_catalog_fixtures
 ):
-    """Test warning flags when a store lacks one or more requested items."""
+    """Verify basket engine evaluates chain-level prices without stock filtering."""
+    from sqlalchemy import select
+
+    from src.models.entities import StorePrice
+
     prods = raw_catalog_fixtures["products"]
     milk = next(p for p in prods if "Milk" in p["name"])
     teabags = next(p for p in prods if "Teabags" in p["name"])
+
+    # Mark one chain's StorePrice.is_in_stock=False to verify no stock filtering occurs
+    milk_price = db_session.scalars(
+        select(StorePrice).where(StorePrice.product_id == milk["id"])
+    ).first()
+    assert milk_price is not None
+    milk_price.is_in_stock = False
+    db_session.commit()
 
     payload = {
         "items": [
@@ -68,15 +92,14 @@ def test_basket_calculation_partial_availability(
     assert response.status_code == 200
     data = response.json()
 
-    # Some stores don't carry teabags in fixtures (e.g. Shoprite)
-    partial_stores = [s for s in data["ranked_stores"] if not s["is_complete_match"]]
-    assert len(partial_stores) > 0
-
-    for partial in partial_stores:
-        assert partial["is_complete_match"] is False
-        assert len(partial["missing_items"]) > 0
-        assert partial["items_available_count"] < partial["total_items_count"]
-        assert any("Teabags" in m["product_name"] for m in partial["missing_items"])
+    # All 5 national chains must return complete pricing without stock filtering
+    assert len(data["ranked_stores"]) == 5
+    for chain in data["ranked_stores"]:
+        assert chain["is_complete_match"] is True
+        assert len(chain["missing_items"]) == 0
+        assert chain["items_available_count"] == 2
+        assert chain["store_name"] == chain["retailer_name"]
+        assert chain["branch_code"] is None
 
 
 def test_basket_calculation_smart_split_optimization(

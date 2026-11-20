@@ -68,15 +68,14 @@ export default function SmartBasketScreen() {
       {cheapestSingle && (
         <ThemedView style={styles.highlightCard}>
           <ThemedText style={styles.sectionTag}>
-            CHEAPEST SINGLE STORE
+            CHEAPEST NATIONAL CHAIN
           </ThemedText>
           <View style={styles.priceRow}>
             <View style={styles.storeInfo}>
-              <ThemedText type="subtitle">{cheapestSingle.store_name}</ThemedText>
+              <ThemedText type="subtitle">{cheapestSingle.retailer_name}</ThemedText>
               <ThemedText style={styles.retailerSub}>
-                {cheapestSingle.retailer_name} ·{' '}
-                {cheapestSingle.items_available_count}/
-                {cheapestSingle.total_items_count} items available
+                National Chain Pricing · {cheapestSingle.total_items_count} basket{' '}
+                {cheapestSingle.total_items_count === 1 ? 'item' : 'items'}
               </ThemedText>
             </View>
             <ThemedText type="title" style={styles.priceHighlight}>
@@ -90,7 +89,7 @@ export default function SmartBasketScreen() {
         <ThemedView style={styles.splitCard}>
           <View style={styles.splitHeader}>
             <ThemedText style={styles.splitTag}>
-              SMART MODE: 2-STORE SPLIT
+              SMART MODE: 2-CHAIN SPLIT
             </ThemedText>
             <ThemedText style={styles.savingsBadge}>
               Save R{optimalSplit.savings_amount} ({optimalSplit.savings_percentage}%)
@@ -108,7 +107,7 @@ export default function SmartBasketScreen() {
             <View key={allocation.store_id} style={styles.allocationBox}>
               <View style={styles.allocationHeader}>
                 <ThemedText type="defaultSemiBold">
-                  {allocation.store_name}
+                  {allocation.retailer_name}
                 </ThemedText>
                 <ThemedText type="defaultSemiBold">
                   Subtotal: R{allocation.subtotal}
@@ -128,18 +127,16 @@ export default function SmartBasketScreen() {
 
       <ThemedView style={styles.rankingsSection}>
         <ThemedText type="subtitle">
-          All Monitored Retailers ({rankedStores.length})
+          National Retailers Ranked ({rankedStores.length})
         </ThemedText>
         {rankedStores.map((store, index) => (
           <ThemedView key={store.store_id} style={styles.storeRow}>
             <View style={styles.rankInfo}>
               <ThemedText type="defaultSemiBold">
-                #{index + 1} {store.store_name}
+                #{index + 1} {store.retailer_name}
               </ThemedText>
               <ThemedText style={styles.retailerSub}>
-                {store.retailer_name} ·{' '}
-                {store.is_complete_match ? 'Complete Match' : 'Partial Match'} (
-                {store.items_available_count}/{store.total_items_count})
+                National chain basket total
               </ThemedText>
             </View>
             <ThemedText type="defaultSemiBold" style={styles.storeTotalText}>

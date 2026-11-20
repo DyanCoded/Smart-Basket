@@ -174,18 +174,18 @@ def test_get_product_prices_success(client: TestClient, raw_catalog_fixtures):
     data = response.json()
     assert data["product_id"] == product_id
     assert data["product_name"] == "Full Cream Fresh Milk 2L"
-    assert data["total_stores"] >= 8
-    assert len(data["prices"]) == data["total_stores"]
+    assert data["total_stores"] == 5
+    assert len(data["prices"]) == 5
 
-    # Verify prices are sorted ascending
+    # Verify prices are sorted ascending across the 5 national chains
     prices = [Decimal(str(item["price"])) for item in data["prices"]]
     assert prices == sorted(prices)
 
-    # Check store fields and promotional indicator
+    # Check chain fields (no branch names or codes)
     first_price = data["prices"][0]
     assert "store_id" in first_price
-    assert "store_name" in first_price
-    assert "retailer_name" in first_price
+    assert first_price["store_name"] == first_price["retailer_name"]
+    assert first_price["branch_code"] is None
     assert "price" in first_price
     assert "is_promotional" in first_price
     assert "is_in_stock" in first_price

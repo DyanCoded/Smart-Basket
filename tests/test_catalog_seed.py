@@ -31,10 +31,10 @@ def test_seed_database_record_counts(db_session: Session):
     history_count = len(db_session.scalars(select(PriceHistory)).all())
 
     assert retailer_count == 5
-    assert store_count == 8
+    assert store_count == 5
     assert category_count == 5
     assert product_count == 18
-    assert price_count == 43
+    assert price_count == 90
     assert history_count == 10
 
 
@@ -52,15 +52,19 @@ def test_seed_database_repeatability_and_reset(empty_db_session: Session):
 
 
 def test_retailer_and_branch_relationships(db_session: Session):
-    """Verify that stores link to parent retailers and maintain branch codes."""
+    """Verify 1 canonical national chain store per retailer without branch codes."""
     stores = db_session.scalars(select(Store)).all()
-    assert len(stores) >= 8
+    assert len(stores) == 5
 
-    retailer_ids = {r.id for r in db_session.scalars(select(Retailer)).all()}
+    retailers_by_id = {r.id: r for r in db_session.scalars(select(Retailer)).all()}
+    seen_retailers = set()
     for store in stores:
-        assert store.retailer_id in retailer_ids
-        assert store.name
-        assert store.branch_code is not None
+        assert store.retailer_id in retailers_by_id
+        assert store.retailer_id not in seen_retailers
+        seen_retailers.add(store.retailer_id)
+        assert store.name == retailers_by_id[store.retailer_id].name
+        assert store.branch_code is None
+        assert store.address is None
         assert store.is_active is True
 
 

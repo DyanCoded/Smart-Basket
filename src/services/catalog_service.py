@@ -60,13 +60,13 @@ def get_product_by_id(session: Session, product_id: uuid.UUID) -> Product | None
 
 
 def get_product_prices(session: Session, product_id: uuid.UUID) -> list[dict[str, Any]]:
-    """List active prices and availability across all monitored stores for an item."""
+    """List national chain-level prices across all 5 monitored retailers for an item."""
     stmt = (
         select(StorePrice, Store, Retailer)
         .join(Store, StorePrice.store_id == Store.id)
         .join(Retailer, Store.retailer_id == Retailer.id)
         .where(StorePrice.product_id == product_id)
-        .order_by(StorePrice.price.asc())
+        .order_by(StorePrice.price.asc(), Retailer.name.asc())
     )
 
     results = session.execute(stmt).all()
@@ -77,8 +77,8 @@ def get_product_prices(session: Session, product_id: uuid.UUID) -> list[dict[str
             {
                 "id": sp.id,
                 "store_id": store.id,
-                "store_name": store.name,
-                "branch_code": store.branch_code,
+                "store_name": retailer.name,
+                "branch_code": None,
                 "retailer_name": retailer.name,
                 "price": sp.price,
                 "is_promotional": sp.is_promotional,
@@ -98,8 +98,12 @@ def get_stores(
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[Sequence[Store], int]:
-    """List store branches and supermarket chains with filtering and pagination."""
-    stmt = select(Store).options(joinedload(Store.retailer))
+    """List the canonical national supermarket chains with filtering and pagination."""
+    stmt = (
+        select(Store)
+        .join(Retailer, Store.retailer_id == Retailer.id)
+        .options(joinedload(Store.retailer))
+    )
 
     if retailer_id:
         stmt = stmt.where(Store.retailer_id == retailer_id)
@@ -112,8 +116,8 @@ def get_stores(
         stmt = stmt.where(
             or_(
                 Store.name.ilike(clean_q),
-                Store.address.ilike(clean_q),
-                Store.branch_code.ilike(clean_q),
+                Retailer.name.ilike(clean_q),
+                Retailer.slug.ilike(clean_q),
             )
         )
 
@@ -121,8 +125,8 @@ def get_stores(
     count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
     total = session.scalar(count_stmt) or 0
 
-    # Paginate and order by name
-    paginated_stmt = stmt.order_by(Store.name.asc()).offset(offset).limit(limit)
+    # Paginate and order by canonical retailer name
+    paginated_stmt = stmt.order_by(Retailer.name.asc()).offset(offset).limit(limit)
     items = session.scalars(paginated_stmt).unique().all()
 
     return items, total

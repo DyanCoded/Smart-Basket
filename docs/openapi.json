@@ -2045,8 +2045,8 @@
         "tags": [
           "stores"
         ],
-        "summary": "List supermarket chains and store branches",
-        "description": "Retrieve supermarket branches with parent retailer relationship, address details, and active monitoring status. Supports filtering by retailer chain UUID, active status, and search query.",
+        "summary": "List monitored national supermarket chains",
+        "description": "Retrieve the 5 canonical South African national supermarket chains (Shoprite, Checkers, Pick n Pay, Woolworths Food, and SPAR) tracked for chain-level grocery pricing. Supports filtering by retailer UUID, active status, and chain name query.",
         "operationId": "list_stores_api_v1_stores_get",
         "parameters": [
           {
@@ -2063,10 +2063,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Filter stores by parent retailer UUID",
+              "description": "Filter by parent retailer UUID",
               "title": "Retailer Id"
             },
-            "description": "Filter stores by parent retailer UUID"
+            "description": "Filter by parent retailer UUID"
           },
           {
             "name": "is_active",
@@ -2081,10 +2081,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Filter by active status",
+              "description": "Filter by active monitoring status",
               "title": "Is Active"
             },
-            "description": "Filter by active status"
+            "description": "Filter by active monitoring status"
           },
           {
             "name": "q",
@@ -2099,10 +2099,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Search term for store name, branch code, or address",
+              "description": "Search term for national retailer chain name or slug",
               "title": "Q"
             },
-            "description": "Search term for store name, branch code, or address"
+            "description": "Search term for national retailer chain name or slug"
           },
           {
             "name": "limit",
@@ -2112,11 +2112,11 @@
               "type": "integer",
               "maximum": 100,
               "minimum": 1,
-              "description": "Maximum number of stores to return",
+              "description": "Maximum number of chains to return",
               "default": 50,
               "title": "Limit"
             },
-            "description": "Maximum number of stores to return"
+            "description": "Maximum number of chains to return"
           },
           {
             "name": "offset",
@@ -2125,16 +2125,16 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "description": "Number of stores to skip for pagination",
+              "description": "Number of chains to skip for pagination",
               "default": 0,
               "title": "Offset"
             },
-            "description": "Number of stores to skip for pagination"
+            "description": "Number of chains to skip for pagination"
           }
         ],
         "responses": {
           "200": {
-            "description": "Paginated list of matching store branches.",
+            "description": "Paginated list of monitored national supermarket chains.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2181,8 +2181,8 @@
         "tags": [
           "baskets"
         ],
-        "summary": "Calculate multi-store basket prices and smart split optimization",
-        "description": "Evaluates a grocery shopping basket across all monitored supermarket stores. Returns a deterministic price ranking of single-store totals (cheapest first), missing item alerts, and the optimal 2-store split (Smart Mode) that maximizes consumer savings.",
+        "summary": "Calculate national retailer basket prices and smart split optimization",
+        "description": "Evaluates a grocery shopping basket across the 5 monitored South African national supermarket chains (Shoprite, Checkers, Pick n Pay, Woolworths Food, and SPAR). Returns a deterministic price ranking by chain name (cheapest first) and the optimal 2-chain split (Smart Mode) that maximizes consumer savings.",
         "operationId": "calculate_basket_api_v1_baskets_calculate_post",
         "requestBody": {
           "content": {
@@ -2466,7 +2466,6 @@
         "examples": [
           {
             "cheapest_single_store": {
-              "branch_code": "CHK-JHB-001",
               "is_complete_match": true,
               "items": [
                 {
@@ -2489,8 +2488,8 @@
               "items_available_count": 2,
               "missing_items": [],
               "retailer_name": "Checkers",
-              "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
-              "store_name": "Checkers Sandton City",
+              "store_id": "26f7a89e-0e58-56e3-a225-8c7310382985",
+              "store_name": "Checkers",
               "total_items_count": 2,
               "total_price": "92.97"
             },
@@ -2512,8 +2511,8 @@
                     }
                   ],
                   "retailer_name": "Checkers",
-                  "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
-                  "store_name": "Checkers Sandton City",
+                  "store_id": "26f7a89e-0e58-56e3-a225-8c7310382985",
+                  "store_name": "Checkers",
                   "subtotal": "73.98"
                 },
                 {
@@ -2528,8 +2527,8 @@
                     }
                   ],
                   "retailer_name": "Pick n Pay",
-                  "store_id": "fb15a499-a4f4-5116-a197-f65578e3a720",
-                  "store_name": "Pick n Pay Rosebank",
+                  "store_id": "cd86c9b4-176c-551e-aebc-b91bfdce86c1",
+                  "store_name": "Pick n Pay",
                   "subtotal": "17.49"
                 }
               ],
@@ -2537,7 +2536,6 @@
             },
             "ranked_stores": [
               {
-                "branch_code": "CHK-JHB-001",
                 "is_complete_match": true,
                 "items": [
                   {
@@ -2560,8 +2558,8 @@
                 "items_available_count": 2,
                 "missing_items": [],
                 "retailer_name": "Checkers",
-                "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
-                "store_name": "Checkers Sandton City",
+                "store_id": "26f7a89e-0e58-56e3-a225-8c7310382985",
+                "store_name": "Checkers",
                 "total_items_count": 2,
                 "total_price": "92.97"
               }
@@ -3201,8 +3199,8 @@
                   }
                 ],
                 "retailer_name": "Checkers",
-                "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
-                "store_name": "Checkers Sandton City",
+                "store_id": "26f7a89e-0e58-56e3-a225-8c7310382985",
+                "store_name": "Checkers",
                 "subtotal": "73.98"
               },
               {
@@ -3217,8 +3215,8 @@
                   }
                 ],
                 "retailer_name": "Pick n Pay",
-                "store_id": "fb15a499-a4f4-5116-a197-f65578e3a720",
-                "store_name": "Pick n Pay Rosebank",
+                "store_id": "cd86c9b4-176c-551e-aebc-b91bfdce86c1",
+                "store_name": "Pick n Pay",
                 "subtotal": "17.49"
               }
             ],
@@ -3934,7 +3932,7 @@
             "recorded_at": "2026-01-01T10:00:00Z",
             "retailer_name": "Checkers",
             "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
-            "store_name": "Checkers Sandton City"
+            "store_name": "Checkers"
           }
         ]
       },
@@ -4225,7 +4223,7 @@
                 "recorded_at": "2026-01-01T10:00:00Z",
                 "retailer_name": "Checkers",
                 "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
-                "store_name": "Checkers Sandton City"
+                "store_name": "Checkers"
               }
             ],
             "product_id": "6e2941e3-033d-5768-8143-5e7ebc24b874",
@@ -4275,14 +4273,13 @@
           {
             "prices": [
               {
-                "branch_code": "CHK-JHB-001",
                 "id": "c1d2e3f4-1234-5678-90ab-cdef12345678",
                 "is_in_stock": true,
                 "is_promotional": false,
                 "price": "36.99",
                 "retailer_name": "Checkers",
                 "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
-                "store_name": "Checkers Sandton City",
+                "store_name": "Checkers",
                 "updated_at": "2026-01-15T08:00:00Z"
               }
             ],
@@ -4562,7 +4559,6 @@
         "description": "Total basket cost calculation for a single store location.",
         "examples": [
           {
-            "branch_code": "CHK-JHB-001",
             "is_complete_match": true,
             "items": [
               {
@@ -4586,7 +4582,7 @@
             "missing_items": [],
             "retailer_name": "Checkers",
             "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
-            "store_name": "Checkers Sandton City",
+            "store_name": "Checkers",
             "total_items_count": 2,
             "total_price": "92.97"
           }
@@ -4600,13 +4596,13 @@
             },
             "type": "array",
             "title": "Items",
-            "description": "Store branches matching filter"
+            "description": "Retailer chains matching filter"
           },
           "total": {
             "type": "integer",
             "minimum": 0.0,
             "title": "Total",
-            "description": "Total matching stores count"
+            "description": "Total matching retailer chains count"
           },
           "limit": {
             "type": "integer",
@@ -4630,17 +4626,15 @@
           "offset"
         ],
         "title": "StoreListResponse",
-        "description": "Paginated list of stores.",
+        "description": "Paginated list of canonical national retailer chains.",
         "examples": [
           {
             "items": [
               {
-                "address": "Sandton City Shopping Centre, Rivonia Rd",
-                "branch_code": "CHK-JHB-001",
                 "created_at": "2026-01-15T08:00:00Z",
-                "id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
+                "id": "26f7a89e-0e58-56e3-a225-8c7310382985",
                 "is_active": true,
-                "name": "Checkers Sandton City",
+                "name": "Checkers",
                 "retailer": {
                   "id": "3ae15000-8907-5fb5-9904-c47dba4bcc3e",
                   "name": "Checkers",
@@ -4651,7 +4645,7 @@
             ],
             "limit": 50,
             "offset": 0,
-            "total": 8
+            "total": 5
           }
         ]
       },
@@ -4661,18 +4655,18 @@
             "type": "string",
             "format": "uuid",
             "title": "Id",
-            "description": "Store price observation record UUID"
+            "description": "Chain price observation record UUID"
           },
           "store_id": {
             "type": "string",
             "format": "uuid",
             "title": "Store Id",
-            "description": "Store branch UUID"
+            "description": "Canonical retailer chain UUID"
           },
           "store_name": {
             "type": "string",
             "title": "Store Name",
-            "description": "Store branch location name"
+            "description": "National retailer chain name"
           },
           "branch_code": {
             "anyOf": [
@@ -4684,18 +4678,18 @@
               }
             ],
             "title": "Branch Code",
-            "description": "Branch identifier code"
+            "description": "Unused at national chain level (always null)"
           },
           "retailer_name": {
             "type": "string",
             "title": "Retailer Name",
-            "description": "Parent retailer chain name"
+            "description": "National retailer chain name"
           },
           "price": {
             "type": "string",
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Price",
-            "description": "Active retail shelf price in ZAR"
+            "description": "Active national chain shelf price in ZAR"
           },
           "is_promotional": {
             "type": "boolean",
@@ -4705,7 +4699,7 @@
           "is_in_stock": {
             "type": "boolean",
             "title": "Is In Stock",
-            "description": "Inventory availability flag"
+            "description": "Active catalog listing indicator"
           },
           "updated_at": {
             "type": "string",
@@ -4726,17 +4720,16 @@
           "updated_at"
         ],
         "title": "StorePriceItem",
-        "description": "Active price and availability of a product at a specific store.",
+        "description": "Active national chain-level price of a product at a retailer.",
         "examples": [
           {
-            "branch_code": "CHK-JHB-001",
             "id": "c1d2e3f4-1234-5678-90ab-cdef12345678",
             "is_in_stock": true,
-            "is_promotional": false,
-            "price": "36.99",
+            "is_promotional": true,
+            "price": "34.99",
             "retailer_name": "Checkers",
-            "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
-            "store_name": "Checkers Sandton City",
+            "store_id": "26f7a89e-0e58-56e3-a225-8c7310382985",
+            "store_name": "Checkers",
             "updated_at": "2026-01-15T08:00:00Z"
           }
         ]
@@ -4747,12 +4740,12 @@
             "type": "string",
             "format": "uuid",
             "title": "Id",
-            "description": "Unique store branch UUID"
+            "description": "Canonical retailer chain store UUID"
           },
           "name": {
             "type": "string",
             "title": "Name",
-            "description": "Store branch location name"
+            "description": "National retailer chain name"
           },
           "branch_code": {
             "anyOf": [
@@ -4764,7 +4757,7 @@
               }
             ],
             "title": "Branch Code",
-            "description": "Retailer internal branch code"
+            "description": "Unused at national chain level (always null)"
           },
           "address": {
             "anyOf": [
@@ -4776,12 +4769,12 @@
               }
             ],
             "title": "Address",
-            "description": "Physical address of store"
+            "description": "Unused at national chain level (always null)"
           },
           "is_active": {
             "type": "boolean",
             "title": "Is Active",
-            "description": "Whether the branch is currently monitored"
+            "description": "Whether the retailer chain is monitored"
           },
           "retailer_id": {
             "type": "string",
@@ -4804,7 +4797,7 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At",
-            "description": "Timestamp when branch was registered"
+            "description": "Timestamp when chain was registered"
           }
         },
         "type": "object",
@@ -4819,12 +4812,10 @@
         "description": "Store branch response with retailer info.",
         "examples": [
           {
-            "address": "Sandton City Shopping Centre, Rivonia Rd, Sandton",
-            "branch_code": "CHK-JHB-001",
             "created_at": "2026-01-15T08:00:00Z",
-            "id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
+            "id": "26f7a89e-0e58-56e3-a225-8c7310382985",
             "is_active": true,
-            "name": "Checkers Sandton City",
+            "name": "Checkers",
             "retailer": {
               "id": "3ae15000-8907-5fb5-9904-c47dba4bcc3e",
               "name": "Checkers",

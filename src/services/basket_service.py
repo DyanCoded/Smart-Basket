@@ -20,7 +20,7 @@ from src.api.v1.schemas import (
     SplitStoreAllocation,
     StoreBasketTotal,
 )
-from src.models.entities import Product, Store, StorePrice
+from src.models.entities import Product, Retailer, Store, StorePrice
 
 
 class ProductNotFoundError(Exception):
@@ -68,23 +68,29 @@ def calculate_basket(
         if pid not in product_map:
             raise ProductNotFoundError(pid)
 
-    # 3. Fetch active stores
-    stores = (
+    # 3. Fetch canonical active retailer chains (1 store record per national retailer)
+    raw_stores = (
         session.scalars(
             select(Store)
+            .join(Retailer, Store.retailer_id == Retailer.id)
             .options(joinedload(Store.retailer))
             .where(Store.is_active.is_(True))
-            .order_by(Store.name.asc())
+            .order_by(Retailer.name.asc(), Store.name.asc())
         )
         .unique()
         .all()
     )
+    # Deduplicate to 1 canonical chain per retailer_id
+    stores_by_retailer: dict[uuid.UUID, Store] = {}
+    for s in raw_stores:
+        if s.retailer_id not in stores_by_retailer:
+            stores_by_retailer[s.retailer_id] = s
+    stores = list(stores_by_retailer.values())
 
-    # 4. Fetch all active in-stock prices for the requested products
+    # 4. Fetch all active chain-level prices (no branch stock/inventory filtering)
     prices = session.scalars(
         select(StorePrice).where(
             StorePrice.product_id.in_(requested_product_ids),
-            StorePrice.is_in_stock.is_(True),
         )
     ).all()
 
@@ -93,9 +99,10 @@ def calculate_basket(
         (sp.store_id, sp.product_id): sp for sp in prices
     }
 
-    # 5. Calculate Single-Store Basket Totals
+    # 5. Calculate Single-Chain Basket Totals across the 5 national retailers
     store_totals: list[StoreBasketTotal] = []
     for store in stores:
+        chain_name = store.retailer.name
         store_items: list[BasketItemDetail] = []
         missing_items: list[MissingItemDetail] = []
         total_price = Decimal("0.00")
@@ -131,9 +138,9 @@ def calculate_basket(
         store_totals.append(
             StoreBasketTotal(
                 store_id=store.id,
-                store_name=store.name,
-                branch_code=store.branch_code,
-                retailer_name=store.retailer.name,
+                store_name=chain_name,
+                branch_code=None,
+                retailer_name=chain_name,
                 total_price=total_price.quantize(Decimal("0.01")),
                 is_complete_match=is_complete,
                 items_available_count=len(store_items),
@@ -143,13 +150,13 @@ def calculate_basket(
             )
         )
 
-    # Sort stores deterministically:
-    # 1. Complete matches first
+    # Sort national retailer chains deterministically:
+    # 1. Full catalog matches first
     # 2. Lowest total price
-    # 3. Store name ascending
+    # 3. Retailer chain name ascending
     ranked_stores = sorted(
         store_totals,
-        key=lambda s: (not s.is_complete_match, s.total_price, s.store_name),
+        key=lambda s: (not s.is_complete_match, s.total_price, s.retailer_name),
     )
 
     cheapest_single_store = next(
@@ -305,7 +312,7 @@ def _optimize_two_store_split(
         stores_output.append(
             SplitStoreAllocation(
                 store_id=best_pair_result["store_a"].id,
-                store_name=best_pair_result["store_a"].name,
+                store_name=best_pair_result["store_a"].retailer.name,
                 retailer_name=best_pair_result["store_a"].retailer.name,
                 items=best_pair_result["alloc_a"],
                 subtotal=sub_a.quantize(Decimal("0.01")),
@@ -319,7 +326,7 @@ def _optimize_two_store_split(
         stores_output.append(
             SplitStoreAllocation(
                 store_id=best_pair_result["store_b"].id,
-                store_name=best_pair_result["store_b"].name,
+                store_name=best_pair_result["store_b"].retailer.name,
                 retailer_name=best_pair_result["store_b"].retailer.name,
                 items=best_pair_result["alloc_b"],
                 subtotal=sub_b.quantize(Decimal("0.01")),

@@ -1,6 +1,7 @@
 # Architectural Decision Records (ADR)
 
 ## Log Summary
+- **2026-11-20:** Aligned catalog seeding, basket calculation engine, API routes, and mobile comparison UI strictly to national chain-level pricing across 5 canonical South African supermarket chains (Shoprite, Checkers, Pick n Pay, Woolworths Food, SPAR) without branch locations or store inventory/stock filtering (ADR-011).
 - **2026-11-19:** Implemented stateless JWT authentication (OAuth2PasswordBearer), bcrypt password hashing, and collaborative household management endpoints (users, homes, memberships with buyer/consumer RBAC) with membership dependency guards (Issue #15).
 - **2026-11-19:** Implemented physical database schema and Alembic migration 0002_add_pantry_and_households for multi-user households (users, homes, memberships) and offline-capable pantry inventory tracking (pantry_items, pantry_logs, baskets.home_id) (Issue #14).
 - **2026-11-19:** Adopted KitchenSync pantry synchronization architecture, unified household schema (users, homes, memberships with buyer/consumer RBAC, pantry_items, pantry_logs), Redis 7 Pub/Sub for real-time WebSockets, nullable product_id catalog-to-pantry replenishment bridge, and Expo SDK 53 mobile client under mobile/ (Issue #13, ADR-007).
@@ -305,3 +306,27 @@ To unify the KitchenSync mobile experience with the SmartBasket price optimizati
 ### Consequences & Trade-offs
 - **Positive:** End-to-end type safety across Python Pydantic schemas and TypeScript interfaces; offline-first resilience via SQLite `pending_sync`; single-tap price comparison for depleted pantry items.
 - **Negative / Mitigations:** Monorepo CI execution time increases slightly with Node.js checks; mitigated via `actions/setup-node` npm dependency caching on `mobile/package-lock.json`.
+
+---
+
+## ADR-011: National Chain-Level Pricing Model (5 Canonical Retailers without Branch Inventory)
+
+### Status
+**Accepted** (2026-11-20)
+
+### Context & Problem Statement
+Early seed fixtures modeled 8 physical branch locations (e.g. *Checkers Sandton City*, *Checkers Sea Point*, *Woolworths V&A Waterfront*) with partial item coverage and `is_in_stock` filtering. This caused duplicate retailer chains and artificial partial-match availability warnings in `POST /api/v1/baskets/calculate` and the mobile comparison UI, conflicting with Smart-Basket's domain scope of tracking national chain-level prices only across 5 target South African retailers without branch locations or per-store inventory.
+
+### Decision & Technical Rationale
+- **5 Canonical Chain Store Records (`scripts/seed.py`, `scripts/seed.sql`, `src/models/fixtures.py`):**
+  - Collapsed the 8 physical branch rows into 1 canonical `Store` record per national retailer (`Shoprite`, `Checkers`, `Pick n Pay`, `Woolworths Food`, `SPAR`) with `branch_code = None` and `address = None`.
+  - Populated full catalog pricing across all 5 chains (`18 products × 5 chains = 90 active StorePrice records`) so every catalog item has comparable national pricing across all 5 retailers.
+- **Chain-Level Basket Engine & APIs (`src/services/basket_service.py`, `src/services/catalog_service.py`, `src/services/intelligence_service.py`):**
+  - Removed `StorePrice.is_in_stock` stock availability filtering from basket evaluation and price intelligence.
+  - Deduplicated and ranked the 5 national retailers strictly by canonical `retailer.name` (`store_name = retailer.name`, `branch_code = None`).
+- **Mobile Comparison UI (`mobile/app/(tabs)/explore.tsx`, `mobile/services/sync.ts`):**
+  - Removed branch location names and inventory/availability phrasing from the SmartBasket comparison screen, displaying clean national retailer chain rankings and 2-chain split savings.
+
+### Consequences & Trade-offs
+- **Positive:** Clean 5-retailer comparison results with zero duplicate chains, zero artificial missing-item warnings, and exact parity with Smart-Basket's national chain pricing domain scope.
+- **Negative / Mitigations:** Retains the underlying `stores` table foreign key structure (`store_id`) to avoid breaking database schema migrations or OpenAPI response field shapes (`store_id`, `store_name`, `retailer_name`), keeping all API contracts backwards compatible.

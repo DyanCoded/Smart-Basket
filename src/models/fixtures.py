@@ -1,4 +1,9 @@
-"""Catalog seed fixtures and test data definitions for Smart Basket."""
+"""Catalog seed fixtures and test data definitions for Smart Basket.
+
+Models national chain-level pricing across 5 target South African supermarket
+retailers (Shoprite, Checkers, Pick n Pay, Woolworths Food, SPAR) without
+branch locations or per-store stock inventory overhead.
+"""
 
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -14,7 +19,7 @@ def seed_uuid(name: str) -> uuid.UUID:
     return uuid.uuid5(SEED_NAMESPACE, name)
 
 
-# 1. Retailers (South African Supermarket Chains)
+# 1. Retailers (5 Target South African National Supermarket Chains)
 RETAILERS: list[dict[str, Any]] = [
     {
         "id": seed_uuid("retailer:checkers"),
@@ -43,75 +48,46 @@ RETAILERS: list[dict[str, Any]] = [
     },
 ]
 
-# 2. Stores (Retailer Branches across Johannesburg and Cape Town)
+# 2. Canonical Chain Store Records (1 National Chain Record per Retailer)
 STORES: list[dict[str, Any]] = [
-    # Checkers Branches
     {
-        "id": seed_uuid("store:checkers-sandton"),
+        "id": seed_uuid("store:checkers"),
         "retailer_id": seed_uuid("retailer:checkers"),
-        "name": "Checkers Sandton City",
-        "branch_code": "CHK-JHB-001",
-        "address": "Sandton City Shopping Centre, Rivonia Rd, Sandton, Johannesburg",
+        "name": "Checkers",
+        "branch_code": None,
+        "address": None,
         "is_active": True,
     },
     {
-        "id": seed_uuid("store:checkers-sea-point"),
-        "retailer_id": seed_uuid("retailer:checkers"),
-        "name": "Checkers Sea Point",
-        "branch_code": "CHK-CPT-002",
-        "address": "Regent Rd, Sea Point, Cape Town",
-        "is_active": True,
-    },
-    # Woolworths Food Branches
-    {
-        "id": seed_uuid("store:woolworths-sandton"),
+        "id": seed_uuid("store:woolworths-food"),
         "retailer_id": seed_uuid("retailer:woolworths"),
-        "name": "Woolworths Sandton City",
-        "branch_code": "WW-JHB-001",
-        "address": "Sandton City Mall, 83 Rivonia Rd, Sandton, Johannesburg",
+        "name": "Woolworths Food",
+        "branch_code": None,
+        "address": None,
         "is_active": True,
     },
     {
-        "id": seed_uuid("store:woolworths-waterfront"),
-        "retailer_id": seed_uuid("retailer:woolworths"),
-        "name": "Woolworths V&A Waterfront",
-        "branch_code": "WW-CPT-002",
-        "address": "Victoria Wharf Shopping Centre, V&A Waterfront, Cape Town",
-        "is_active": True,
-    },
-    # Pick n Pay Branches
-    {
-        "id": seed_uuid("store:pnp-on-nicol"),
+        "id": seed_uuid("store:pick-n-pay"),
         "retailer_id": seed_uuid("retailer:pick-n-pay"),
-        "name": "Pick n Pay On Nicol",
-        "branch_code": "PNP-JHB-001",
-        "address": "William Nicol Dr & Republic Rd, Bryanston, Johannesburg",
+        "name": "Pick n Pay",
+        "branch_code": None,
+        "address": None,
         "is_active": True,
     },
     {
-        "id": seed_uuid("store:pnp-claremont"),
-        "retailer_id": seed_uuid("retailer:pick-n-pay"),
-        "name": "Pick n Pay Claremont",
-        "branch_code": "PNP-CPT-002",
-        "address": "Main Rd, Claremont, Cape Town",
-        "is_active": True,
-    },
-    # SPAR Branch
-    {
-        "id": seed_uuid("store:spar-rosebank"),
+        "id": seed_uuid("store:spar"),
         "retailer_id": seed_uuid("retailer:spar"),
-        "name": "SUPERSPAR Rosebank",
-        "branch_code": "SPR-JHB-001",
-        "address": "The Zone @ Rosebank, Oxford Rd, Rosebank, Johannesburg",
+        "name": "SPAR",
+        "branch_code": None,
+        "address": None,
         "is_active": True,
     },
-    # Shoprite Branch
     {
-        "id": seed_uuid("store:shoprite-jhb-central"),
+        "id": seed_uuid("store:shoprite"),
         "retailer_id": seed_uuid("retailer:shoprite"),
-        "name": "Shoprite Johannesburg Central",
-        "branch_code": "SHP-JHB-001",
-        "address": "Plein & Wanderers St, Johannesburg Central",
+        "name": "Shoprite",
+        "branch_code": None,
+        "address": None,
         "is_active": True,
     },
 ]
@@ -321,442 +297,228 @@ PRODUCTS: list[dict[str, Any]] = [
     },
 ]
 
-# 5. Store-Specific Active Prices (Demonstrating Multi-Store Price Divergence)
+# 5. Chain-Level Active Pricing Matrix (18 products x 5 national chains = 90 records)
+# Each entry maps product_key -> { chain_key: (price, is_promotional) }
+_CHAIN_PRICE_MATRIX: dict[str, dict[str, tuple[str, bool]]] = {
+    "clover-milk-2l": {
+        "checkers": ("34.99", True),
+        "woolworths-food": ("42.99", False),
+        "pick-n-pay": ("38.99", False),
+        "spar": ("40.49", False),
+        "shoprite": ("33.99", False),
+    },
+    "farmer-brown-eggs-18pk": {
+        "checkers": ("64.99", False),
+        "woolworths-food": ("62.99", True),
+        "pick-n-pay": ("63.99", False),
+        "spar": ("66.49", False),
+        "shoprite": ("58.99", False),
+    },
+    "lurpak-butter-500g": {
+        "checkers": ("79.99", False),
+        "woolworths-food": ("84.99", False),
+        "pick-n-pay": ("69.99", True),
+        "spar": ("81.99", False),
+        "shoprite": ("77.99", False),
+    },
+    "lancewood-yogurt-1kg": {
+        "checkers": ("49.99", False),
+        "woolworths-food": ("56.99", False),
+        "pick-n-pay": ("47.99", True),
+        "spar": ("52.49", False),
+        "shoprite": ("48.99", False),
+    },
+    "albany-white-bread-700g": {
+        "checkers": ("17.99", False),
+        "woolworths-food": ("19.99", False),
+        "pick-n-pay": ("16.99", False),
+        "spar": ("18.49", False),
+        "shoprite": ("15.99", False),
+    },
+    "sasko-brown-bread-700g": {
+        "checkers": ("16.99", False),
+        "woolworths-food": ("18.99", False),
+        "pick-n-pay": ("15.99", False),
+        "spar": ("17.49", False),
+        "shoprite": ("14.99", False),
+    },
+    "butter-croissants-4pk": {
+        "checkers": ("32.99", False),
+        "woolworths-food": ("36.99", False),
+        "pick-n-pay": ("31.99", False),
+        "spar": ("29.99", True),
+        "shoprite": ("30.99", False),
+    },
+    "tastic-rice-2kg": {
+        "checkers": ("39.99", True),
+        "woolworths-food": ("49.99", False),
+        "pick-n-pay": ("43.99", False),
+        "spar": ("44.99", False),
+        "shoprite": ("41.99", False),
+    },
+    "sunfoil-oil-2l": {
+        "checkers": ("82.99", False),
+        "woolworths-food": ("89.99", False),
+        "pick-n-pay": ("74.99", True),
+        "spar": ("84.99", False),
+        "shoprite": ("76.99", False),
+    },
+    "nescafe-coffee-200g": {
+        "checkers": ("119.99", False),
+        "woolworths-food": ("129.99", False),
+        "pick-n-pay": ("114.99", False),
+        "spar": ("122.99", False),
+        "shoprite": ("109.99", False),
+    },
+    "huletts-sugar-2-5kg": {
+        "checkers": ("58.99", False),
+        "woolworths-food": ("64.99", False),
+        "pick-n-pay": ("56.99", False),
+        "spar": ("59.99", False),
+        "shoprite": ("54.99", True),
+    },
+    "fattis-spaghetti-500g": {
+        "checkers": ("18.99", False),
+        "woolworths-food": ("21.99", False),
+        "pick-n-pay": ("17.99", False),
+        "spar": ("19.49", False),
+        "shoprite": ("16.99", False),
+    },
+    "rhodes-chopped-tomatoes-400g": {
+        "checkers": ("21.99", False),
+        "woolworths-food": ("24.99", False),
+        "pick-n-pay": ("19.99", True),
+        "spar": ("22.49", False),
+        "shoprite": ("20.49", False),
+    },
+    "all-gold-sauce-700ml": {
+        "checkers": ("41.99", False),
+        "woolworths-food": ("46.99", False),
+        "pick-n-pay": ("39.99", False),
+        "spar": ("42.99", False),
+        "shoprite": ("38.99", False),
+    },
+    "fresh-bananas-1kg": {
+        "checkers": ("24.99", False),
+        "woolworths-food": ("28.99", False),
+        "pick-n-pay": ("22.99", False),
+        "spar": ("25.49", False),
+        "shoprite": ("21.99", False),
+    },
+    "baby-potatoes-1kg": {
+        "checkers": ("29.99", False),
+        "woolworths-food": ("34.99", False),
+        "pick-n-pay": ("27.99", False),
+        "spar": ("28.99", False),
+        "shoprite": ("26.99", False),
+    },
+    "ripe-avocados-2pk": {
+        "checkers": ("36.99", True),
+        "woolworths-food": ("44.99", False),
+        "pick-n-pay": ("39.99", False),
+        "spar": ("41.99", False),
+        "shoprite": ("37.99", False),
+    },
+    "freshpak-rooibos-80pk": {
+        "checkers": ("52.99", False),
+        "woolworths-food": ("56.99", False),
+        "pick-n-pay": ("49.99", True),
+        "spar": ("54.49", False),
+        "shoprite": ("51.99", False),
+    },
+}
+
 STORE_PRICES: list[dict[str, Any]] = [
-    # Clover Milk 2L across branches
     {
-        "id": seed_uuid("price:clover-milk:chk-sandton"),
-        "store_id": seed_uuid("store:checkers-sandton"),
-        "product_id": seed_uuid("product:clover-milk-2l"),
-        "price": Decimal("34.99"),
-        "is_promotional": True,
+        "id": seed_uuid(f"price:{prod_key}:{chain_key}"),
+        "store_id": seed_uuid(f"store:{chain_key}"),
+        "product_id": seed_uuid(f"product:{prod_key}"),
+        "price": Decimal(price_str),
+        "is_promotional": is_promo,
         "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:clover-milk:chk-sea-point"),
-        "store_id": seed_uuid("store:checkers-sea-point"),
-        "product_id": seed_uuid("product:clover-milk-2l"),
-        "price": Decimal("36.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:clover-milk:ww-sandton"),
-        "store_id": seed_uuid("store:woolworths-sandton"),
-        "product_id": seed_uuid("product:clover-milk-2l"),
-        "price": Decimal("42.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:clover-milk:ww-waterfront"),
-        "store_id": seed_uuid("store:woolworths-waterfront"),
-        "product_id": seed_uuid("product:clover-milk-2l"),
-        "price": Decimal("44.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:clover-milk:pnp-on-nicol"),
-        "store_id": seed_uuid("store:pnp-on-nicol"),
-        "product_id": seed_uuid("product:clover-milk-2l"),
-        "price": Decimal("38.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:clover-milk:pnp-claremont"),
-        "store_id": seed_uuid("store:pnp-claremont"),
-        "product_id": seed_uuid("product:clover-milk-2l"),
-        "price": Decimal("37.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:clover-milk:spar-rosebank"),
-        "store_id": seed_uuid("store:spar-rosebank"),
-        "product_id": seed_uuid("product:clover-milk-2l"),
-        "price": Decimal("40.49"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:clover-milk:shoprite-jhb"),
-        "store_id": seed_uuid("store:shoprite-jhb-central"),
-        "product_id": seed_uuid("product:clover-milk-2l"),
-        "price": Decimal("33.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    # Farmer Brown Large Eggs 18pk across branches
-    {
-        "id": seed_uuid("price:eggs:chk-sandton"),
-        "store_id": seed_uuid("store:checkers-sandton"),
-        "product_id": seed_uuid("product:farmer-brown-eggs-18pk"),
-        "price": Decimal("64.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:eggs:ww-sandton"),
-        "store_id": seed_uuid("store:woolworths-sandton"),
-        "product_id": seed_uuid("product:farmer-brown-eggs-18pk"),
-        "price": Decimal("62.99"),
-        "is_promotional": True,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:eggs:ww-waterfront"),
-        "store_id": seed_uuid("store:woolworths-waterfront"),
-        "product_id": seed_uuid("product:farmer-brown-eggs-18pk"),
-        "price": Decimal("69.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:eggs:pnp-on-nicol"),
-        "store_id": seed_uuid("store:pnp-on-nicol"),
-        "product_id": seed_uuid("product:farmer-brown-eggs-18pk"),
-        "price": Decimal("63.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:eggs:shoprite-jhb"),
-        "store_id": seed_uuid("store:shoprite-jhb-central"),
-        "product_id": seed_uuid("product:farmer-brown-eggs-18pk"),
-        "price": Decimal("58.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    # Lurpak Salted Butter 500g
-    {
-        "id": seed_uuid("price:butter:chk-sandton"),
-        "store_id": seed_uuid("store:checkers-sandton"),
-        "product_id": seed_uuid("product:lurpak-butter-500g"),
-        "price": Decimal("79.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:butter:ww-sandton"),
-        "store_id": seed_uuid("store:woolworths-sandton"),
-        "product_id": seed_uuid("product:lurpak-butter-500g"),
-        "price": Decimal("84.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:butter:pnp-on-nicol"),
-        "store_id": seed_uuid("store:pnp-on-nicol"),
-        "product_id": seed_uuid("product:lurpak-butter-500g"),
-        "price": Decimal("69.99"),
-        "is_promotional": True,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:butter:spar-rosebank"),
-        "store_id": seed_uuid("store:spar-rosebank"),
-        "product_id": seed_uuid("product:lurpak-butter-500g"),
-        "price": Decimal("81.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    # Albany Superior Sliced White Bread 700g
-    {
-        "id": seed_uuid("price:white-bread:chk-sandton"),
-        "store_id": seed_uuid("store:checkers-sandton"),
-        "product_id": seed_uuid("product:albany-white-bread-700g"),
-        "price": Decimal("17.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:white-bread:ww-sandton"),
-        "store_id": seed_uuid("store:woolworths-sandton"),
-        "product_id": seed_uuid("product:albany-white-bread-700g"),
-        "price": Decimal("19.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:white-bread:pnp-on-nicol"),
-        "store_id": seed_uuid("store:pnp-on-nicol"),
-        "product_id": seed_uuid("product:albany-white-bread-700g"),
-        "price": Decimal("16.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:white-bread:shoprite-jhb"),
-        "store_id": seed_uuid("store:shoprite-jhb-central"),
-        "product_id": seed_uuid("product:albany-white-bread-700g"),
-        "price": Decimal("15.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    # Sasko Brown Bread 700g
-    {
-        "id": seed_uuid("price:brown-bread:chk-sandton"),
-        "store_id": seed_uuid("store:checkers-sandton"),
-        "product_id": seed_uuid("product:sasko-brown-bread-700g"),
-        "price": Decimal("16.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:brown-bread:ww-sandton"),
-        "store_id": seed_uuid("store:woolworths-sandton"),
-        "product_id": seed_uuid("product:sasko-brown-bread-700g"),
-        "price": Decimal("18.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:brown-bread:shoprite-jhb"),
-        "store_id": seed_uuid("store:shoprite-jhb-central"),
-        "product_id": seed_uuid("product:sasko-brown-bread-700g"),
-        "price": Decimal("14.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    # Tastic Rice 2kg
-    {
-        "id": seed_uuid("price:rice:chk-sandton"),
-        "store_id": seed_uuid("store:checkers-sandton"),
-        "product_id": seed_uuid("product:tastic-rice-2kg"),
-        "price": Decimal("39.99"),
-        "is_promotional": True,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:rice:ww-sandton"),
-        "store_id": seed_uuid("store:woolworths-sandton"),
-        "product_id": seed_uuid("product:tastic-rice-2kg"),
-        "price": Decimal("49.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:rice:pnp-on-nicol"),
-        "store_id": seed_uuid("store:pnp-on-nicol"),
-        "product_id": seed_uuid("product:tastic-rice-2kg"),
-        "price": Decimal("43.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:rice:shoprite-jhb"),
-        "store_id": seed_uuid("store:shoprite-jhb-central"),
-        "product_id": seed_uuid("product:tastic-rice-2kg"),
-        "price": Decimal("41.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    # Sunfoil Oil 2L
-    {
-        "id": seed_uuid("price:oil:chk-sandton"),
-        "store_id": seed_uuid("store:checkers-sandton"),
-        "product_id": seed_uuid("product:sunfoil-oil-2l"),
-        "price": Decimal("82.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:oil:ww-sandton"),
-        "store_id": seed_uuid("store:woolworths-sandton"),
-        "product_id": seed_uuid("product:sunfoil-oil-2l"),
-        "price": Decimal("89.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:oil:pnp-on-nicol"),
-        "store_id": seed_uuid("store:pnp-on-nicol"),
-        "product_id": seed_uuid("product:sunfoil-oil-2l"),
-        "price": Decimal("74.99"),
-        "is_promotional": True,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:oil:shoprite-jhb"),
-        "store_id": seed_uuid("store:shoprite-jhb-central"),
-        "product_id": seed_uuid("product:sunfoil-oil-2l"),
-        "price": Decimal("76.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    # Nescafe Classic Coffee 200g
-    {
-        "id": seed_uuid("price:coffee:chk-sandton"),
-        "store_id": seed_uuid("store:checkers-sandton"),
-        "product_id": seed_uuid("product:nescafe-coffee-200g"),
-        "price": Decimal("119.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:coffee:ww-sandton"),
-        "store_id": seed_uuid("store:woolworths-sandton"),
-        "product_id": seed_uuid("product:nescafe-coffee-200g"),
-        "price": Decimal("129.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:coffee:pnp-on-nicol"),
-        "store_id": seed_uuid("store:pnp-on-nicol"),
-        "product_id": seed_uuid("product:nescafe-coffee-200g"),
-        "price": Decimal("114.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:coffee:shoprite-jhb"),
-        "store_id": seed_uuid("store:shoprite-jhb-central"),
-        "product_id": seed_uuid("product:nescafe-coffee-200g"),
-        "price": Decimal("109.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    # Bananas 1kg
-    {
-        "id": seed_uuid("price:bananas:chk-sandton"),
-        "store_id": seed_uuid("store:checkers-sandton"),
-        "product_id": seed_uuid("product:fresh-bananas-1kg"),
-        "price": Decimal("24.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:bananas:ww-sandton"),
-        "store_id": seed_uuid("store:woolworths-sandton"),
-        "product_id": seed_uuid("product:fresh-bananas-1kg"),
-        "price": Decimal("28.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:bananas:pnp-on-nicol"),
-        "store_id": seed_uuid("store:pnp-on-nicol"),
-        "product_id": seed_uuid("product:fresh-bananas-1kg"),
-        "price": Decimal("22.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:bananas:shoprite-jhb"),
-        "store_id": seed_uuid("store:shoprite-jhb-central"),
-        "product_id": seed_uuid("product:fresh-bananas-1kg"),
-        "price": Decimal("21.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    # Teabags 80pk
-    {
-        "id": seed_uuid("price:teabags:chk-sandton"),
-        "store_id": seed_uuid("store:checkers-sandton"),
-        "product_id": seed_uuid("product:freshpak-rooibos-80pk"),
-        "price": Decimal("52.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:teabags:pnp-on-nicol"),
-        "store_id": seed_uuid("store:pnp-on-nicol"),
-        "product_id": seed_uuid("product:freshpak-rooibos-80pk"),
-        "price": Decimal("49.99"),
-        "is_promotional": True,
-        "is_in_stock": True,
-    },
-    {
-        "id": seed_uuid("price:teabags:ww-sandton"),
-        "store_id": seed_uuid("store:woolworths-sandton"),
-        "product_id": seed_uuid("product:freshpak-rooibos-80pk"),
-        "price": Decimal("56.99"),
-        "is_promotional": False,
-        "is_in_stock": True,
-    },
+    }
+    for prod_key, chain_prices in _CHAIN_PRICE_MATRIX.items()
+    for chain_key, (price_str, is_promo) in chain_prices.items()
 ]
 
 
 def generate_price_history_fixtures(
     base_time: datetime | None = None,
 ) -> list[dict[str, Any]]:
-    """Generate 30-60 day price history tracking records for products across stores."""
+    """Generate 30-60 day national chain price history tracking records."""
     now = base_time or datetime.now(timezone.utc)
     return [
-        # Clover Milk 2L at Checkers Sandton
+        # Clover Milk 2L at Checkers
         {
-            "id": seed_uuid("hist:milk:chk-sandton:60d"),
-            "store_id": seed_uuid("store:checkers-sandton"),
+            "id": seed_uuid("hist:milk:checkers:60d"),
+            "store_id": seed_uuid("store:checkers"),
             "product_id": seed_uuid("product:clover-milk-2l"),
             "price": Decimal("36.99"),
             "is_promotional": False,
             "recorded_at": now - timedelta(days=60),
         },
         {
-            "id": seed_uuid("hist:milk:chk-sandton:30d"),
-            "store_id": seed_uuid("store:checkers-sandton"),
+            "id": seed_uuid("hist:milk:checkers:30d"),
+            "store_id": seed_uuid("store:checkers"),
             "product_id": seed_uuid("product:clover-milk-2l"),
             "price": Decimal("38.99"),
             "is_promotional": False,
             "recorded_at": now - timedelta(days=30),
         },
         {
-            "id": seed_uuid("hist:milk:chk-sandton:5d"),
-            "store_id": seed_uuid("store:checkers-sandton"),
+            "id": seed_uuid("hist:milk:checkers:5d"),
+            "store_id": seed_uuid("store:checkers"),
             "product_id": seed_uuid("product:clover-milk-2l"),
             "price": Decimal("34.99"),
             "is_promotional": True,
             "recorded_at": now - timedelta(days=5),
         },
-        # Sunfoil Oil 2L at Woolworths Sandton
+        # Sunfoil Oil 2L at Woolworths Food
         {
-            "id": seed_uuid("hist:oil:ww-sandton:60d"),
-            "store_id": seed_uuid("store:woolworths-sandton"),
+            "id": seed_uuid("hist:oil:woolworths-food:60d"),
+            "store_id": seed_uuid("store:woolworths-food"),
             "product_id": seed_uuid("product:sunfoil-oil-2l"),
             "price": Decimal("84.99"),
             "is_promotional": False,
             "recorded_at": now - timedelta(days=60),
         },
         {
-            "id": seed_uuid("hist:oil:ww-sandton:35d"),
-            "store_id": seed_uuid("store:woolworths-sandton"),
+            "id": seed_uuid("hist:oil:woolworths-food:35d"),
+            "store_id": seed_uuid("store:woolworths-food"),
             "product_id": seed_uuid("product:sunfoil-oil-2l"),
             "price": Decimal("86.99"),
             "is_promotional": False,
             "recorded_at": now - timedelta(days=35),
         },
         {
-            "id": seed_uuid("hist:oil:ww-sandton:10d"),
-            "store_id": seed_uuid("store:woolworths-sandton"),
+            "id": seed_uuid("hist:oil:woolworths-food:10d"),
+            "store_id": seed_uuid("store:woolworths-food"),
             "product_id": seed_uuid("product:sunfoil-oil-2l"),
             "price": Decimal("89.99"),
             "is_promotional": False,
             "recorded_at": now - timedelta(days=10),
         },
-        # Nescafe Coffee 200g at Pick n Pay On Nicol
+        # Nescafe Coffee 200g at Pick n Pay
         {
-            "id": seed_uuid("hist:coffee:pnp:45d"),
-            "store_id": seed_uuid("store:pnp-on-nicol"),
+            "id": seed_uuid("hist:coffee:pick-n-pay:45d"),
+            "store_id": seed_uuid("store:pick-n-pay"),
             "product_id": seed_uuid("product:nescafe-coffee-200g"),
             "price": Decimal("109.99"),
             "is_promotional": False,
             "recorded_at": now - timedelta(days=45),
         },
         {
-            "id": seed_uuid("hist:coffee:pnp:15d"),
-            "store_id": seed_uuid("store:pnp-on-nicol"),
+            "id": seed_uuid("hist:coffee:pick-n-pay:15d"),
+            "store_id": seed_uuid("store:pick-n-pay"),
             "product_id": seed_uuid("product:nescafe-coffee-200g"),
             "price": Decimal("114.99"),
             "is_promotional": False,
             "recorded_at": now - timedelta(days=15),
         },
-        # Tastic Rice 2kg at Shoprite JHB Central
+        # Tastic Rice 2kg at Shoprite
         {
             "id": seed_uuid("hist:rice:shoprite:50d"),
-            "store_id": seed_uuid("store:shoprite-jhb-central"),
+            "store_id": seed_uuid("store:shoprite"),
             "product_id": seed_uuid("product:tastic-rice-2kg"),
             "price": Decimal("38.99"),
             "is_promotional": False,
@@ -764,7 +526,7 @@ def generate_price_history_fixtures(
         },
         {
             "id": seed_uuid("hist:rice:shoprite:20d"),
-            "store_id": seed_uuid("store:shoprite-jhb-central"),
+            "store_id": seed_uuid("store:shoprite"),
             "product_id": seed_uuid("product:tastic-rice-2kg"),
             "price": Decimal("41.99"),
             "is_promotional": False,

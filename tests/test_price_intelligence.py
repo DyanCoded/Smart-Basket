@@ -43,10 +43,10 @@ def test_get_price_history_filter_by_store(client: TestClient, raw_catalog_fixtu
     prods = raw_catalog_fixtures["products"]
     stores = raw_catalog_fixtures["stores"]
     milk = next(p for p in prods if "Milk" in p["name"])
-    chk_sandton = next(s for s in stores if "Checkers Sandton" in s["name"])
+    checkers_chain = next(s for s in stores if s["name"] == "Checkers")
 
     product_id = str(milk["id"])
-    store_id = str(chk_sandton["id"])
+    store_id = str(checkers_chain["id"])
 
     response = client.get(f"/api/v1/products/{product_id}/history?store_id={store_id}")
     assert response.status_code == 200

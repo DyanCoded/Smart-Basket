@@ -1,4 +1,4 @@
-"""Supermarket chains and store branches API routes."""
+"""National supermarket chains API routes."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ router = APIRouter(
     responses={
         status.HTTP_200_OK: {
             "model": StoreListResponse,
-            "description": "Paginated list of matching store branches.",
+            "description": "Paginated list of monitored national supermarket chains.",
         },
         status.HTTP_400_BAD_REQUEST: {
             "model": ErrorResponse,
@@ -41,38 +41,39 @@ router = APIRouter(
             "description": "Validation error in pagination or query parameters.",
         },
     },
-    summary="List supermarket chains and store branches",
+    summary="List monitored national supermarket chains",
     description=(
-        "Retrieve supermarket branches with parent retailer relationship, "
-        "address details, and active monitoring status. Supports filtering "
-        "by retailer chain UUID, active status, and search query."
+        "Retrieve the 5 canonical South African national supermarket chains "
+        "(Shoprite, Checkers, Pick n Pay, Woolworths Food, and SPAR) tracked "
+        "for chain-level grocery pricing. Supports filtering by retailer UUID, "
+        "active status, and chain name query."
     ),
-    response_description="Paginated list of supermarket store branches.",
+    response_description="Paginated list of canonical national supermarket chains.",
 )
 def list_stores(
     db: Annotated[Session, Depends(get_db)],
     retailer_id: Annotated[
         uuid.UUID | None,
-        Query(description="Filter stores by parent retailer UUID"),
+        Query(description="Filter by parent retailer UUID"),
     ] = None,
     is_active: Annotated[
         bool | None,
-        Query(description="Filter by active status"),
+        Query(description="Filter by active monitoring status"),
     ] = None,
     q: Annotated[
         str | None,
-        Query(description="Search term for store name, branch code, or address"),
+        Query(description="Search term for national retailer chain name or slug"),
     ] = None,
     limit: Annotated[
         int,
-        Query(ge=1, le=100, description="Maximum number of stores to return"),
+        Query(ge=1, le=100, description="Maximum number of chains to return"),
     ] = 50,
     offset: Annotated[
         int,
-        Query(ge=0, description="Number of stores to skip for pagination"),
+        Query(ge=0, description="Number of chains to skip for pagination"),
     ] = 0,
 ) -> StoreListResponse:
-    """Retrieve supermarket store branches matching filter criteria."""
+    """Retrieve canonical national supermarket chains matching filter criteria."""
     items, total = catalog_service.get_stores(
         session=db,
         retailer_id=retailer_id,

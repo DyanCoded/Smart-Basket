@@ -53,15 +53,16 @@ _EX_EGGS_UUID = "4ca9f9c4-dea2-5f16-8ffb-4ec70ea08382"
             "description": "Validation error in basket request schema or quantities.",
         },
     },
-    summary="Calculate multi-store basket prices and smart split optimization",
+    summary="Calculate national retailer basket prices and smart split optimization",
     description=(
-        "Evaluates a grocery shopping basket across all monitored supermarket "
-        "stores. Returns a deterministic price ranking of single-store totals "
-        "(cheapest first), missing item alerts, and the optimal 2-store split "
-        "(Smart Mode) that maximizes consumer savings."
+        "Evaluates a grocery shopping basket across the 5 monitored South African "
+        "national supermarket chains (Shoprite, Checkers, Pick n Pay, Woolworths Food, "
+        "and SPAR). Returns a deterministic price ranking by chain name (cheapest "
+        "first) and the optimal 2-chain split (Smart Mode) that maximizes consumer "
+        "savings."
     ),
     response_description=(
-        "Ranked store totals and optimal multi-store split optimization."
+        "Ranked national retailer totals and optimal 2-chain split optimization."
     ),
 )
 def calculate_basket(

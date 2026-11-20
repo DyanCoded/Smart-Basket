@@ -1,7 +1,8 @@
 """Database seeding script and verification tool for Smart Basket.
 
-Populates local and test databases with supermarket chains, store branches,
-grocery categories, universal products, store-specific pricing, and price history.
+Populates local and test databases with the 5 national supermarket chains
+(Shoprite, Checkers, Pick n Pay, Woolworths Food, SPAR), grocery categories,
+universal products, chain-level pricing across all 5 retailers, and price history.
 """
 
 from __future__ import annotations
@@ -51,35 +52,34 @@ def seed_database(session: Session, reset: bool = True) -> dict[str, int]:
         Dictionary mapping entity names to inserted record counts.
     """
     if reset:
-        # Delete in reverse foreign-key dependency order
+        # Clear chain pricing, history, and legacy branch store records cleanly
+        # while preserving any household baskets/pantry rows referencing products
         session.execute(delete(PriceHistory))
         session.execute(delete(StorePrice))
-        session.execute(delete(Product))
-        session.execute(delete(Category))
         session.execute(delete(Store))
-        session.execute(delete(Retailer))
         session.flush()
 
-    # 1. Retailers
+    # 1. Retailers (upsert/merge so re-seeding is safe with existing households)
     retailers = [
-        Retailer(
-            id=item["id"],
-            name=item["name"],
-            slug=item["slug"],
+        session.merge(
+            Retailer(
+                id=item["id"],
+                name=item["name"],
+                slug=item["slug"],
+            )
         )
         for item in RETAILERS
     ]
-    session.add_all(retailers)
     session.flush()
 
-    # 2. Stores (Branches)
+    # 2. Canonical Chain Store Records (1 per national retailer, no branches)
     stores = [
         Store(
             id=item["id"],
             retailer_id=item["retailer_id"],
             name=item["name"],
-            branch_code=item.get("branch_code"),
-            address=item.get("address"),
+            branch_code=None,
+            address=None,
             is_active=item.get("is_active", True),
         )
         for item in STORES
@@ -89,31 +89,33 @@ def seed_database(session: Session, reset: bool = True) -> dict[str, int]:
 
     # 3. Categories
     categories = [
-        Category(
-            id=item["id"],
-            name=item["name"],
-            slug=item["slug"],
-            parent_id=item.get("parent_id"),
+        session.merge(
+            Category(
+                id=item["id"],
+                name=item["name"],
+                slug=item["slug"],
+                parent_id=item.get("parent_id"),
+            )
         )
         for item in CATEGORIES
     ]
-    session.add_all(categories)
     session.flush()
 
     # 4. Products
     products = [
-        Product(
-            id=item["id"],
-            category_id=item.get("category_id"),
-            name=item["name"],
-            brand=item.get("brand"),
-            barcode=item.get("barcode"),
-            unit_size=item["unit_size"],
-            unit_type=item["unit_type"],
+        session.merge(
+            Product(
+                id=item["id"],
+                category_id=item.get("category_id"),
+                name=item["name"],
+                brand=item.get("brand"),
+                barcode=item.get("barcode"),
+                unit_size=item["unit_size"],
+                unit_type=item["unit_type"],
+            )
         )
         for item in PRODUCTS
     ]
-    session.add_all(products)
     session.flush()
 
     # 5. Store Prices
@@ -245,7 +247,7 @@ def export_sql_script(output_path: str = "scripts/seed.sql") -> None:
     lines.extend(
         [
             "-" * 80,
-            "-- 2. Stores (Retailer Branches across Johannesburg and Cape Town)",
+            "-- 2. Canonical National Retailer Chain Records (1 per Retailer)",
             "-" * 80,
             (
                 "INSERT INTO stores "
@@ -302,7 +304,7 @@ def export_sql_script(output_path: str = "scripts/seed.sql") -> None:
     lines.extend(
         [
             "-" * 80,
-            "-- 5. Store-Specific Active Prices (Multi-Store Price Divergence)",
+            "-- 5. Chain-Level Active Prices (Full Catalog across 5 Retailers)",
             "-" * 80,
             (
                 "INSERT INTO store_prices "

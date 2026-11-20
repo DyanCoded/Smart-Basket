@@ -66,7 +66,7 @@ def get_price_history(
             {
                 "id": ph.id,
                 "store_id": store.id,
-                "store_name": store.name,
+                "store_name": retailer.name,
                 "retailer_name": retailer.name,
                 "price": ph.price,
                 "is_promotional": ph.is_promotional,
@@ -94,10 +94,9 @@ def get_price_intelligence(
 
     hist_records = session.scalars(hist_stmt).all()
 
-    # 2. Fetch current active prices
+    # 2. Fetch current active national chain prices
     active_stmt = select(StorePrice).where(
         StorePrice.product_id == product_id,
-        StorePrice.is_in_stock.is_(True),
     )
     if store_id:
         active_stmt = active_stmt.where(StorePrice.store_id == store_id)

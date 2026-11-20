@@ -16,8 +16,8 @@ _EX_MILK_NAME = "Full Cream Fresh Milk 2L"
 _EX_BREAD_NAME = "Superior Sliced White Bread 700g"
 _EX_CAT_DAIRY_ID = "dcda34e0-efd6-5f43-b188-db739a0deab7"
 _EX_RET_CHK_ID = "3ae15000-8907-5fb5-9904-c47dba4bcc3e"
-_EX_STORE_CHK_ID = "a3b3c260-9228-54dd-ba6d-3b216931987e"
-_EX_STORE_PNP_ID = "fb15a499-a4f4-5116-a197-f65578e3a720"
+_EX_STORE_CHK_ID = "26f7a89e-0e58-56e3-a225-8c7310382985"
+_EX_STORE_PNP_ID = "cd86c9b4-176c-551e-aebc-b91bfdce86c1"
 
 
 class CategorySummary(BaseModel):
@@ -153,14 +153,14 @@ class StoreResponse(BaseModel):
         json_schema_extra={
             "examples": [
                 {
-                    "id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
-                    "name": "Checkers Sandton City",
-                    "branch_code": "CHK-JHB-001",
-                    "address": "Sandton City Shopping Centre, Rivonia Rd, Sandton",
+                    "id": _EX_STORE_CHK_ID,
+                    "name": "Checkers",
+                    "branch_code": None,
+                    "address": None,
                     "is_active": True,
-                    "retailer_id": "3ae15000-8907-5fb5-9904-c47dba4bcc3e",
+                    "retailer_id": _EX_RET_CHK_ID,
                     "retailer": {
-                        "id": "3ae15000-8907-5fb5-9904-c47dba4bcc3e",
+                        "id": _EX_RET_CHK_ID,
                         "name": "Checkers",
                         "slug": "checkers",
                     },
@@ -170,24 +170,24 @@ class StoreResponse(BaseModel):
         },
     )
 
-    id: uuid.UUID = Field(description="Unique store branch UUID")
-    name: str = Field(description="Store branch location name")
+    id: uuid.UUID = Field(description="Canonical retailer chain store UUID")
+    name: str = Field(description="National retailer chain name")
     branch_code: Optional[str] = Field(
-        default=None, description="Retailer internal branch code"
+        default=None, description="Unused at national chain level (always null)"
     )
     address: Optional[str] = Field(
-        default=None, description="Physical address of store"
+        default=None, description="Unused at national chain level (always null)"
     )
-    is_active: bool = Field(description="Whether the branch is currently monitored")
+    is_active: bool = Field(description="Whether the retailer chain is monitored")
     retailer_id: uuid.UUID = Field(description="Parent retailer chain UUID")
     retailer: Optional[RetailerSummary] = Field(
         default=None, description="Expanded parent retailer details"
     )
-    created_at: datetime = Field(description="Timestamp when branch was registered")
+    created_at: datetime = Field(description="Timestamp when chain was registered")
 
 
 class StoreListResponse(BaseModel):
-    """Paginated list of stores."""
+    """Paginated list of canonical national retailer chains."""
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -195,21 +195,21 @@ class StoreListResponse(BaseModel):
                 {
                     "items": [
                         {
-                            "id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
-                            "name": "Checkers Sandton City",
-                            "branch_code": "CHK-JHB-001",
-                            "address": "Sandton City Shopping Centre, Rivonia Rd",
+                            "id": _EX_STORE_CHK_ID,
+                            "name": "Checkers",
+                            "branch_code": None,
+                            "address": None,
                             "is_active": True,
-                            "retailer_id": "3ae15000-8907-5fb5-9904-c47dba4bcc3e",
+                            "retailer_id": _EX_RET_CHK_ID,
                             "retailer": {
-                                "id": "3ae15000-8907-5fb5-9904-c47dba4bcc3e",
+                                "id": _EX_RET_CHK_ID,
                                 "name": "Checkers",
                                 "slug": "checkers",
                             },
                             "created_at": "2026-01-15T08:00:00Z",
                         }
                     ],
-                    "total": 8,
+                    "total": 5,
                     "limit": 50,
                     "offset": 0,
                 }
@@ -217,14 +217,14 @@ class StoreListResponse(BaseModel):
         }
     )
 
-    items: List[StoreResponse] = Field(description="Store branches matching filter")
-    total: int = Field(ge=0, description="Total matching stores count")
+    items: List[StoreResponse] = Field(description="Retailer chains matching filter")
+    total: int = Field(ge=0, description="Total matching retailer chains count")
     limit: int = Field(ge=1, le=100, description="Items limit per page")
     offset: int = Field(ge=0, description="Items offset")
 
 
 class StorePriceItem(BaseModel):
-    """Active price and availability of a product at a specific store."""
+    """Active national chain-level price of a product at a retailer."""
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -232,12 +232,12 @@ class StorePriceItem(BaseModel):
             "examples": [
                 {
                     "id": "c1d2e3f4-1234-5678-90ab-cdef12345678",
-                    "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
-                    "store_name": "Checkers Sandton City",
-                    "branch_code": "CHK-JHB-001",
+                    "store_id": _EX_STORE_CHK_ID,
+                    "store_name": "Checkers",
+                    "branch_code": None,
                     "retailer_name": "Checkers",
-                    "price": "36.99",
-                    "is_promotional": False,
+                    "price": "34.99",
+                    "is_promotional": True,
                     "is_in_stock": True,
                     "updated_at": "2026-01-15T08:00:00Z",
                 }
@@ -245,18 +245,18 @@ class StorePriceItem(BaseModel):
         },
     )
 
-    id: uuid.UUID = Field(description="Store price observation record UUID")
-    store_id: uuid.UUID = Field(description="Store branch UUID")
-    store_name: str = Field(description="Store branch location name")
+    id: uuid.UUID = Field(description="Chain price observation record UUID")
+    store_id: uuid.UUID = Field(description="Canonical retailer chain UUID")
+    store_name: str = Field(description="National retailer chain name")
     branch_code: Optional[str] = Field(
-        default=None, description="Branch identifier code"
+        default=None, description="Unused at national chain level (always null)"
     )
-    retailer_name: str = Field(description="Parent retailer chain name")
-    price: Decimal = Field(description="Active retail shelf price in ZAR")
+    retailer_name: str = Field(description="National retailer chain name")
+    price: Decimal = Field(description="Active national chain shelf price in ZAR")
     is_promotional: bool = Field(
         description="Whether price is an active promotional discount"
     )
-    is_in_stock: bool = Field(description="Inventory availability flag")
+    is_in_stock: bool = Field(description="Active catalog listing indicator")
     updated_at: datetime = Field(description="Timestamp of latest price verification")
 
 
@@ -273,8 +273,8 @@ class ProductPricesResponse(BaseModel):
                         {
                             "id": "c1d2e3f4-1234-5678-90ab-cdef12345678",
                             "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
-                            "store_name": "Checkers Sandton City",
-                            "branch_code": "CHK-JHB-001",
+                            "store_name": "Checkers",
+                            "branch_code": None,
                             "retailer_name": "Checkers",
                             "price": "36.99",
                             "is_promotional": False,
@@ -375,8 +375,8 @@ class StoreBasketTotal(BaseModel):
             "examples": [
                 {
                     "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
-                    "store_name": "Checkers Sandton City",
-                    "branch_code": "CHK-JHB-001",
+                    "store_name": "Checkers",
+                    "branch_code": None,
                     "retailer_name": "Checkers",
                     "total_price": "92.97",
                     "is_complete_match": True,
@@ -446,7 +446,7 @@ class OptimalSplitResult(BaseModel):
                     "stores": [
                         {
                             "store_id": _EX_STORE_CHK_ID,
-                            "store_name": "Checkers Sandton City",
+                            "store_name": "Checkers",
                             "retailer_name": "Checkers",
                             "items": [
                                 {
@@ -462,7 +462,7 @@ class OptimalSplitResult(BaseModel):
                         },
                         {
                             "store_id": _EX_STORE_PNP_ID,
-                            "store_name": "Pick n Pay Rosebank",
+                            "store_name": "Pick n Pay",
                             "retailer_name": "Pick n Pay",
                             "items": [
                                 {
@@ -515,8 +515,8 @@ class BasketCalculationResponse(BaseModel):
                     "ranked_stores": [
                         {
                             "store_id": _EX_STORE_CHK_ID,
-                            "store_name": "Checkers Sandton City",
-                            "branch_code": "CHK-JHB-001",
+                            "store_name": "Checkers",
+                            "branch_code": None,
                             "retailer_name": "Checkers",
                             "total_price": "92.97",
                             "is_complete_match": True,
@@ -545,8 +545,8 @@ class BasketCalculationResponse(BaseModel):
                     ],
                     "cheapest_single_store": {
                         "store_id": _EX_STORE_CHK_ID,
-                        "store_name": "Checkers Sandton City",
-                        "branch_code": "CHK-JHB-001",
+                        "store_name": "Checkers",
+                        "branch_code": None,
                         "retailer_name": "Checkers",
                         "total_price": "92.97",
                         "is_complete_match": True,
@@ -576,7 +576,7 @@ class BasketCalculationResponse(BaseModel):
                         "stores": [
                             {
                                 "store_id": _EX_STORE_CHK_ID,
-                                "store_name": "Checkers Sandton City",
+                                "store_name": "Checkers",
                                 "retailer_name": "Checkers",
                                 "items": [
                                     {
@@ -592,7 +592,7 @@ class BasketCalculationResponse(BaseModel):
                             },
                             {
                                 "store_id": _EX_STORE_PNP_ID,
-                                "store_name": "Pick n Pay Rosebank",
+                                "store_name": "Pick n Pay",
                                 "retailer_name": "Pick n Pay",
                                 "items": [
                                     {
@@ -645,7 +645,7 @@ class PriceHistoryPoint(BaseModel):
                 {
                     "id": "e5f6a7b8-1234-5678-90ab-cdef12345678",
                     "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
-                    "store_name": "Checkers Sandton City",
+                    "store_name": "Checkers",
                     "retailer_name": "Checkers",
                     "price": "34.99",
                     "is_promotional": True,
@@ -679,7 +679,7 @@ class ProductPriceHistoryResponse(BaseModel):
                         {
                             "id": "e5f6a7b8-1234-5678-90ab-cdef12345678",
                             "store_id": "a3b3c260-9228-54dd-ba6d-3b216931987e",
-                            "store_name": "Checkers Sandton City",
+                            "store_name": "Checkers",
                             "retailer_name": "Checkers",
                             "price": "34.99",
                             "is_promotional": True,

@@ -1,6 +1,7 @@
 # Architectural Decision Records (ADR)
 
 ## Log Summary
+- **2026-11-20:** Established Phase 3 base scraper framework (`src/scrapers/base.py`), Pydantic v2 Decimal schemas (`src/scrapers/models.py`), South African Rand currency & unit tidy-data normalizer + EAN/brand+name+unit matcher (`src/scrapers/normalizer.py`), canonical national-chain DB publisher (`src/scrapers/publisher.py`), and CLI runner (`scripts/run_scrapers.py`) (Issue #19, ADR-013).
 - **2026-11-20:** Added Store Selection Checklist UX (`Included Stores` multi-select pills on mobile Optimizer screen) and optional `store_ids` / `retailer_slugs` filtering with multi-chain subset optimization on `POST /api/v1/baskets/calculate` (ADR-012).
 - **2026-11-20:** Aligned catalog seeding, basket calculation engine, API routes, and mobile comparison UI strictly to national chain-level pricing across 5 canonical South African supermarket chains (Shoprite, Checkers, Pick n Pay, Woolworths Food, SPAR) without branch locations or store inventory/stock filtering (ADR-011).
 - **2026-11-19:** Implemented stateless JWT authentication (OAuth2PasswordBearer), bcrypt password hashing, and collaborative household management endpoints (users, homes, memberships with buyer/consumer RBAC) with membership dependency guards (Issue #15).
@@ -353,3 +354,38 @@ Shoppers rarely visit an arbitrary count of retailers (`max_stores = N`)—inste
 ### Consequences & Trade-offs
 - **Positive:** Intuitive real-world shopper control over exact nearby retailers; zero performance overhead (at most 31 subsets across 5 national chains); full backwards compatibility for existing callers omitting filter fields.
 - **Negative / Mitigations:** Toggling pills triggers fresh API calls; mitigated by sub-15ms backend calculation latency and instant offline fallback parity in `mobile/services/sync.ts`.
+
+---
+
+## ADR-013: Phase 3 Base Scraper Framework, Tidy-Data Normalizer & Canonical Chain Publisher (Issue #19)
+
+### Status
+**Accepted** (2026-11-20) *(Note: Issue #19 originally referenced ADR-011; numbered sequentially as ADR-013 following ADR-011 and ADR-012.)*
+
+### Context & Problem Statement
+Phases 1 and 2 relied on deterministic fixture pricing (`scripts/seed.py`, `src/models/fixtures.py`) to validate the basket engine, price intelligence APIs, and KitchenSync mobile sync. To deliver live South African supermarket price intelligence across Shoprite, Checkers, Pick n Pay, Woolworths Food, and SPAR, Phase 3 requires a shared, contract-enforced data ingestion pipeline that:
+1. Decouples retailer-specific HTTP/HTML/API extraction from tidy-data normalization and database publishing.
+2. Enforces exact `Decimal` (`NUMERIC(10, 2)`) precision across messy South African Rand shelf strings and multi-buy promotions (ADR-003).
+3. Standardizes heterogeneous packaging labels (`"2 Litre"`, `"2000ml"`, `"6 x 330ml"`, `"18 pack"`) into canonical `(unit_size, unit_type)` tuples.
+4. Reconciles scraped items against the universal `products` catalog without duplicating records, and upserts national chain prices strictly into the 5 canonical `Store` rows without branch locations or stock tracking (ADR-011).
+
+### Decision & Technical Rationale
+- **Strict Pydantic v2 Scraper Contracts (`src/scrapers/models.py`):**
+  - Defined `RawScrapedItem`, `NormalizedPriceRecord`, and `PublishSummary` with `Decimal` quantization (`ROUND_HALF_UP` to `0.01`), canonical retailer slugs (`shoprite`, `checkers`, `pick-n-pay`, `woolworths-food`, `spar`), and canonical units (`L`, `ml`, `kg`, `g`, `unit`).
+- **Async Base Scraper Interface (`src/scrapers/base.py`):**
+  - Implemented abstract `BaseRetailerScraper` managing an async `httpx.AsyncClient` context manager, South African locale headers (`Accept-Language: en-ZA,en;q=0.9`), polite inter-request throttling (`min_delay_seconds`), and exponential backoff retry on transient `429`/`5xx` and network errors.
+  - Included `PlaceholderFixtureScraper` (explicitly marked `PLACEHOLDER_`) to enable end-to-end `--dry-run` CLI verification until individual live retailer adapters land in subsequent Phase 3 issues.
+- **Tidy-Data Normalizer & Product Matcher (`src/scrapers/normalizer.py`):**
+  - `parse_zar_price` converts `"R 34.99"`, `"R39.99 / ea"`, `"R1,299.50"`, `"99c"`, and multi-buy expressions (`"2 FOR R60"`, `"3 for R 100.00"`, `"Buy 2 @ R45"`) into exact single-unit `Decimal` values with promotional telemetry.
+  - `normalize_unit` standardizes metric mass/volume (`>= 1000ml → L`, `>= 1000g → kg`, `< 1L → ml`, `< 1kg → g`), multipacks (`"6 x 330ml" → 1.98 L`), and count packs (`"18pk" → 18.00 unit`).
+  - `match_product` reconciles items via exact EAN/GTIN barcode lookup first, falling back to normalized `(brand, name, unit_size, unit_type)` comparison (stripping redundant unit tokens and duplicated leading brand prefixes).
+- **Idempotent Canonical-Chain Publisher (`src/scrapers/publisher.py`):**
+  - Resolves each retailer slug to its single canonical `Store` (`branch_code IS NULL`) and upserts `StorePrice` (`is_in_stock = True` always).
+  - Appends a timestamped `PriceHistory` row on new prices, price/promo changes, or scheduled snapshot runs (`force_history_snapshot=True`).
+  - Supports `dry_run=True` for safe diffing with zero database writes.
+- **CLI Entrypoint (`scripts/run_scrapers.py`):**
+  - Exposes `python scripts/run_scrapers.py --retailer all --dry-run` (plus `--queries` and `--force-history`) wired to a centralized `SCRAPER_REGISTRY`.
+
+### Consequences & Trade-offs
+- **Positive:** Clean separation of concerns; new retailer scrapers only need to subclass `BaseRetailerScraper` and yield `RawScrapedItem` objects; guaranteed `Decimal` precision and deduplicated catalog integrity.
+- **Negative / Mitigations:** `PlaceholderFixtureScraper` uses explicitly marked `PLACEHOLDER_` sample records until live storefront adapters are added; mitigated by clear `PLACEHOLDER_` annotations and dry-run isolation.

@@ -24,6 +24,7 @@ from src.scrapers.publisher import (
 )
 from src.scrapers.retailers import (
     CheckersScraper,
+    PickNPayScraper,
     ShopriteGroupBaseScraper,
     ShopriteScraper,
 )
@@ -34,6 +35,7 @@ __all__ = [
     "ShopriteGroupBaseScraper",
     "CheckersScraper",
     "ShopriteScraper",
+    "PickNPayScraper",
     "CanonicalRetailerSlug",
     "CanonicalUnitType",
     "RawScrapedItem",

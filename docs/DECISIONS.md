@@ -1,6 +1,7 @@
 # Architectural Decision Records (ADR)
 
 ## Log Summary
+- **2026-11-20:** Implemented Pick n Pay catalog scraper adapter (`PickNPayScraper` in `src/scrapers/retailers/pick_n_pay.py`) parsing SAP Commerce OCC v2 JSON and storefront HTML (standard shelf prices, Smart Shopper loyalty promos, multi-buy deals, discount-only label guards, barcodes, and units), registered in `scripts/run_scrapers.py` with offline fixture tests (Issue #21).
 - **2026-11-20:** Implemented shared Shoprite Group catalog scraper adapters (`CheckersScraper` & `ShopriteScraper` in `src/scrapers/retailers/shoprite_group.py`) supporting SAP Commerce HTML product cards (`.item-product` + `data-product-ga` + superscript ZAR cents + Xtra Savings/multi-buy promos) and JSON search payloads, registered in `scripts/run_scrapers.py` with offline fixture parser tests (Issue #20).
 - **2026-11-20:** Established Phase 3 base scraper framework (`src/scrapers/base.py`), Pydantic v2 Decimal schemas (`src/scrapers/models.py`), South African Rand currency & unit tidy-data normalizer + EAN/brand+name+unit matcher (`src/scrapers/normalizer.py`), canonical national-chain DB publisher (`src/scrapers/publisher.py`), and CLI runner (`scripts/run_scrapers.py`) (Issue #19, ADR-013).
 - **2026-11-20:** Added Store Selection Checklist UX (`Included Stores` multi-select pills on mobile Optimizer screen) and optional `store_ids` / `retailer_slugs` filtering with multi-chain subset optimization on `POST /api/v1/baskets/calculate` (ADR-012).

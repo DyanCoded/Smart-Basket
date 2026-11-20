@@ -1,0 +1,106 @@
+{
+  "_fixture_note": "PLACEHOLDER_ offline SAP Commerce OCC v2 JSON fixture for Pick n Pay (www.pnp.co.za)",
+  "pagination": {
+    "currentPage": 0,
+    "pageSize": 24,
+    "totalPages": 1,
+    "totalResults": 5
+  },
+  "products": [
+    {
+      "code": "000000000000246102_EA",
+      "ean": "6001299011011",
+      "name": "Clover Full Cream Fresh Milk 2L",
+      "brandName": "Clover",
+      "size": "2 Litre",
+      "categories": [
+        {"code": "dairy-eggs", "name": "Dairy & Eggs"},
+        {"code": "fresh-milk", "name": "Fresh Milk"}
+      ],
+      "price": {
+        "currencyIso": "ZAR",
+        "value": 38.99,
+        "formattedValue": "R38.99"
+      },
+      "potentialPromotions": [
+        {
+          "promotionType": "SMART_SHOPPER",
+          "description": "Smart Shopper Save R6.00 - Pay R32.99"
+        }
+      ],
+      "url": "/pnpstorefront/pnp/en/All-Products/Dairy-and-Eggs/Clover-Full-Cream-Milk-2L/p/000000000000246102_EA"
+    },
+    {
+      "code": "000000000000311004_EA",
+      "barcodes": ["6001299011028"],
+      "name": "Farmer Brown Large Eggs 18 Pack",
+      "brand": "Farmer Brown",
+      "quantityDescription": "18pk",
+      "categories": [
+        {"code": "dairy-eggs", "name": "Dairy & Eggs"}
+      ],
+      "price": {
+        "currencyIso": "ZAR",
+        "value": 64.99,
+        "formattedValue": "R64.99"
+      },
+      "potentialPromotions": [
+        {
+          "promotionType": "MULTI_BUY",
+          "description": "Buy 2 for R109.98"
+        }
+      ],
+      "url": "/pnpstorefront/pnp/en/All-Products/Dairy-and-Eggs/Farmer-Brown-Eggs-18pk/p/000000000000311004_EA"
+    },
+    {
+      "code": "000000000000400812_EA",
+      "ean": "6001299011059",
+      "name": "Albany Superior Sliced White Bread 700g",
+      "brand": "Albany",
+      "packSize": "700g",
+      "categories": [
+        {"code": "bakery", "name": "Bakery"}
+      ],
+      "price": {
+        "currencyIso": "ZAR",
+        "value": 16.99,
+        "formattedValue": "R16.99"
+      },
+      "potentialPromotions": [
+        {
+          "promotionType": "SMART_SHOPPER",
+          "description": "Smart Shopper Save R2.00"
+        }
+      ],
+      "url": "/pnpstorefront/pnp/en/All-Products/Bakery/Albany-White-Bread-700g/p/000000000000400812_EA"
+    },
+    {
+      "code": "000000000000789111_EA",
+      "name": "PnP Fresh Crisp Red Apples 1.5kg",
+      "brand": "Pick n Pay",
+      "department": "Fresh Produce/Fruit",
+      "wasPrice": {
+        "formattedValue": "R36.99"
+      },
+      "price": {
+        "formattedValue": "R31.99"
+      },
+      "url": "/pnpstorefront/pnp/en/All-Products/Fresh-Produce/PnP-Red-Apples-1.5kg/p/000000000000789111_EA"
+    },
+    {
+      "code": "000000000000902551_EA",
+      "gtin": "6001087354127",
+      "name": "Sunlight 2in1 Auto Washing Powder 2000g",
+      "brand": "Sunlight",
+      "unitOfMeasure": "2000g",
+      "department": "Household/Laundry",
+      "price": {
+        "formattedValue": "R78.99"
+      },
+      "smartShopperPrice": {
+        "formattedValue": "R67.99"
+      },
+      "url": "/pnpstorefront/pnp/en/All-Products/Household/Sunlight-Washing-Powder-2kg/p/000000000000902551_EA"
+    }
+  ]
+}

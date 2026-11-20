@@ -29,6 +29,7 @@ from src.scrapers.base import (  # noqa: E402
 from src.scrapers.models import NormalizedPriceRecord, PublishSummary  # noqa: E402
 from src.scrapers.normalizer import normalize_scraped_item  # noqa: E402
 from src.scrapers.publisher import CatalogPublisher  # noqa: E402
+from src.scrapers.retailers.pick_n_pay import PickNPayScraper  # noqa: E402
 from src.scrapers.retailers.shoprite_group import (  # noqa: E402
     CheckersScraper,
     ShopriteScraper,
@@ -45,13 +46,13 @@ CANONICAL_RETAILERS: tuple[str, ...] = (
 )
 
 # Registry of retailer scraper factories.
-# Live adapters registered for Shoprite & Checkers (#20).
-# PLACEHOLDER_: Pick n Pay, Woolworths Food & SPAR use PlaceholderFixtureScraper
-# until their live adapters (#21-#23) land.
+# Live adapters registered for Shoprite, Checkers (#20) & Pick n Pay (#21).
+# PLACEHOLDER_: Woolworths Food & SPAR use PlaceholderFixtureScraper until
+# their live adapters (#22-#23) land.
 SCRAPER_REGISTRY: dict[str, Callable[[], BaseRetailerScraper]] = {
     "shoprite": ShopriteScraper,
     "checkers": CheckersScraper,
-    "pick-n-pay": lambda: PlaceholderFixtureScraper(retailer_slug="pick-n-pay"),
+    "pick-n-pay": PickNPayScraper,
     "woolworths-food": lambda: PlaceholderFixtureScraper(
         retailer_slug="woolworths-food"
     ),

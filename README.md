@@ -1,11 +1,13 @@
-# Smart Basket 🛒
+# Smart Basket & KitchenSync 🛒📱
 
-> Real-time grocery price intelligence and basket optimization engine featuring multi-store comparison, price tracking, and intelligent split shopping.
+> Real-time grocery price intelligence, multi-store basket optimization, and collaborative household pantry synchronization engine with an offline-first React Native (Expo) mobile client.
 
 [![CI Status](https://github.com/DyanCoded/Smart-Basket/actions/workflows/ci.yml/badge.svg)](https://github.com/DyanCoded/Smart-Basket/actions/workflows/ci.yml)
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg?logo=postgresql)](https://www.postgresql.org/)
+[![Redis](https://img.shields.io/badge/Redis-7-DC382D.svg?logo=redis)](https://redis.io/)
+[![Expo](https://img.shields.io/badge/Expo_SDK-58-000020.svg?logo=expo)](https://expo.dev/)
 [![Release](https://img.shields.io/badge/release-v1.0.0-green.svg)](docs/RELEASE_NOTES_v1.0.0.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -13,58 +15,73 @@
 
 ## 📌 Project Overview
 
-**Smart Basket** is a data-driven platform designed to eliminate the manual effort of hunting across multiple supermarket chains for the best grocery prices. By tracking catalog metadata, price changes over time, and store inventory, the Smart Basket engine calculates the most cost-effective shopping strategy—whether buying everything from a single store or intelligently splitting the basket across multiple retailers.
+**Smart Basket** combines a mathematically exact supermarket price comparison engine (**Phase 1**) with **KitchenSync** (**Phase 2**)—a collaborative household pantry management system and cross-platform **React Native (Expo)** mobile app.
+
+Instead of manually rebuilding shopping lists every week and hunting across supermarket flyers, household members track their shared kitchen inventory (`ok`, `low`, `finished`) on their phones—even while offline via a local SQLite mutation queue (`pending_sync`). Whenever a catalog-linked pantry staple runs `low` or `finished`:
+1. **Auto-Basket Replenishment:** The item is automatically upserted into the household's active Smart Basket (`basket_items`).
+2. **Real-Time Household Sync:** Redis Pub/Sub broadcasts `ITEM_UPDATED` / `ITEM_DELETED` events over WebSockets (`WS /api/v1/homes/{home_id}/ws`) to all connected family devices.
+3. **Buyer Push Alerts:** Designated household `buyer` members receive asynchronous Firebase Cloud Messaging (FCM) notifications.
+4. **Multi-Store Price Optimization:** Shoppers immediately compare the **Cheapest Single Store** against the **Optimal 2-Store Split** across **Checkers**, **Woolworths Food**, **Pick n Pay**, **SPAR**, and **Shoprite**.
 
 ---
 
 ## 🏗️ System Architecture
 
-The platform follows a layered, modular architecture separating presentation, business logic, and persistence:
+The platform follows a unified, layered architecture connecting the offline-first Expo mobile client, FastAPI REST/WebSocket controllers, domain services, PostgreSQL 16, and Redis 7 Pub/Sub:
 
 ```mermaid
 flowchart TD
-    subgraph Presentation["Presentation & API Consumers"]
+    subgraph Presentation["Presentation & Mobile Client Layer"]
+        MobileApp["KitchenSync Mobile App<br>(React Native / Expo in mobile/)"]
+        LocalSQLite[("Local SQLite DB<br>(local_pantry_items & pending_sync)")]
         Swagger["Swagger UI / ReDoc<br>(/docs, /redoc)"]
         Postman["Postman Collection<br>(docs/postman_collection.json)"]
-        Clients["Web & Mobile Clients<br>(REST API Consumers)"]
+        MobileApp <--> LocalSQLite
     end
 
-    subgraph AppLayer["Application Layer (FastAPI ASGI)"]
-        RouterMain["FastAPI Router<br>(src/main.py)"]
-        V1Router["API v1 Router<br>(/api/v1)"]
-        ProdRouter["Products Controller<br>(/api/v1/products)"]
-        StoreRouter["Stores Controller<br>(/api/v1/stores)"]
-        BasketRouter["Baskets Controller<br>(/api/v1/baskets)"]
+    subgraph AppLayer["Application Layer (FastAPI ASGI - src/api/v1/)"]
+        RouterMain["FastAPI App & CORS<br>(src/main.py)"]
+        AuthRouter["Auth & Homes Controllers<br>(/api/v1/auth, /api/v1/homes)"]
+        PantryRouter["Pantry, Sync & WS Controller<br>(/api/v1/homes/{id}/pantry, /ws)"]
+        ProdRouter["Products & Stores Controllers<br>(/api/v1/products, /api/v1/stores)"]
+        BasketRouter["Basket Optimizer Controller<br>(/api/v1/baskets/calculate)"]
     end
 
-    subgraph ServiceLayer["Domain & Business Logic Layer"]
+    subgraph ServiceLayer["Domain & Business Logic Layer (src/services/)"]
+        PantrySvc["Pantry & LWW Delta-Sync Engine<br>(pantry_service.py)"]
+        PubSubSvc["Redis Pub/Sub Broker<br>(pubsub_service.py)"]
+        NotifySvc["FCM Buyer Push Service<br>(notification_service.py)"]
         CatalogSvc["Catalog Service<br>(catalog_service.py)"]
-        BasketSvc["Optimization Engine<br>(basket_service.py)"]
-        IntelSvc["Price Intelligence<br>(intelligence_service.py)"]
+        BasketSvc["Multi-Store Split Optimizer<br>(basket_service.py)"]
+        IntelSvc["Price Trend Intelligence<br>(intelligence_service.py)"]
     end
 
-    subgraph DataLayer["Persistence Layer"]
-        ORM["SQLAlchemy 2.0 ORM<br>(Declarative Entities)"]
-        Alembic["Alembic Migrations<br>(0001_baseline_schema)"]
-        DB[("PostgreSQL 16 Engine<br>(Relational Database)")]
+    subgraph DataLayer["Persistence & Messaging Infrastructure"]
+        ORM["SQLAlchemy 2.0 ORM & Alembic<br>(0001_baseline & 0002_pantry)"]
+        DB[("PostgreSQL 16 Engine<br>(Catalog, Prices, Users, Homes, Pantry)")]
+        Redis[("Redis 7 Alpine<br>(channel: home:{home_id})")]
     end
 
     Presentation --> RouterMain
-    RouterMain --> V1Router
-    V1Router --> ProdRouter
-    V1Router --> StoreRouter
-    V1Router --> BasketRouter
+    RouterMain --> AuthRouter
+    RouterMain --> PantryRouter
+    RouterMain --> ProdRouter
+    RouterMain --> BasketRouter
 
+    PantryRouter --> PantrySvc
+    PantryRouter <--> PubSubSvc
+    PantryRouter --> NotifySvc
+    PantrySvc -->|Auto-Replenish Hook| BasketSvc
     ProdRouter --> CatalogSvc
     ProdRouter --> IntelSvc
-    StoreRouter --> CatalogSvc
     BasketRouter --> BasketSvc
 
+    PantrySvc --> ORM
     CatalogSvc --> ORM
     BasketSvc --> ORM
     IntelSvc --> ORM
     ORM --> DB
-    Alembic -.-> DB
+    PubSubSvc <--> Redis
 ```
 
 Interactive API documentation and schema specifications are accessible via:
@@ -73,14 +90,44 @@ Interactive API documentation and schema specifications are accessible via:
 
 ---
 
+## 📂 Repository Structure
+
+```text
+Smart-Basket/
+├── src/                          # FastAPI Unified Backend
+│   ├── api/v1/                   # REST & WebSocket Route Controllers
+│   │   ├── auth.py               # JWT Registration, Login & User Profile (/auth)
+│   │   ├── homes.py              # Household Creation & Buyer/Consumer RBAC (/homes)
+│   │   ├── pantry.py             # Pantry CRUD, /sync, Auto-Basket & WebSocket (/ws)
+│   │   ├── products.py           # Catalog Search, Prices, History & Intelligence
+│   │   ├── stores.py             # Retailer Chains & Branch Locations
+│   │   ├── baskets.py            # Multi-Store Basket Optimizer (/baskets/calculate)
+│   │   └── schemas.py            # Strict Pydantic v2 Request/Response Contracts
+│   ├── core/                     # Config, Database Session & JWT/Bcrypt Security
+│   ├── models/entities.py        # SQLAlchemy 2.0 Declarative Entities (12 Tables)
+│   └── services/                 # Domain Logic, LWW Sync, Redis Pub/Sub & FCM Alerts
+├── migrations/                   # Alembic Schema Migrations (0001 & 0002)
+├── mobile/                       # KitchenSync Expo (React Native) Mobile Client
+│   ├── app/(tabs)/               # Tab Screens: Pantry (index.tsx) & SmartBasket (explore.tsx)
+│   ├── services/                 # FastAPI Client, Auto-Session, Delta Sync & WebSocket Stream
+│   ├── db/                       # Local SQLite Schema (react-native-sqlite-storage) & Queue
+│   └── types/                    # TypeScript Interfaces Matching FastAPI Pydantic Schemas
+├── scripts/                      # Seed Fixtures, OpenAPI Exporter & Pre-Push Check Runner
+├── docs/                         # ADRs (DECISIONS.md), Domain Model, Retrospective & Specs
+└── tests/                        # 92 Pytest Unit, Contract & Integration Tests
+```
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites
 - **Git**
 - **Python 3.11+**
-- **Docker & Docker Compose** (for PostgreSQL 16)
+- **Node.js 20+ & npm** (for the Expo mobile app in `mobile/`)
+- **Docker & Docker Compose** (for PostgreSQL 16 and Redis 7)
 
-### Complete Quick-Start Setup
+### 1. Backend & Infrastructure Quick-Start
 
 1. **Clone the repository:**
    ```bash
@@ -88,7 +135,7 @@ Interactive API documentation and schema specifications are accessible via:
    cd Smart-Basket
    ```
 
-2. **Set up virtual environment & install dependencies:**
+2. **Set up Python virtual environment & install dependencies:**
    ```bash
    python -m venv .venv
 
@@ -98,7 +145,8 @@ Interactive API documentation and schema specifications are accessible via:
    # On Linux/macOS:
    source .venv/bin/activate
 
-   # Install development and testing dependencies:
+   # Install runtime, development, and testing dependencies:
+   pip install -r requirements.txt
    pip install -r requirements-dev.txt
    ```
 
@@ -107,14 +155,12 @@ Interactive API documentation and schema specifications are accessible via:
    cp .env.example .env
    ```
 
-4. **Start local PostgreSQL 16 database container:**
+4. **Start PostgreSQL 16 and Redis 7 containers:**
    ```bash
    docker-compose up -d
-   # Or using Docker compose plugin:
-   # docker compose up -d
    ```
 
-5. **Apply database migrations & seed catalog fixtures:**
+5. **Apply Alembic migrations & seed catalog fixtures:**
    ```bash
    alembic upgrade head
    python scripts/seed.py
@@ -122,7 +168,7 @@ Interactive API documentation and schema specifications are accessible via:
    # python scripts/seed.py --verify
    ```
 
-6. **Run test suite & verification checks:**
+6. **Run test suite & automated verification checks:**
    ```bash
    # Run Pytest test suite directly:
    pytest
@@ -131,11 +177,30 @@ Interactive API documentation and schema specifications are accessible via:
    python scripts/check.py
    ```
 
-7. **Start the development API server:**
+7. **Start the FastAPI development server:**
    ```bash
    uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
    ```
-   Explore the interactive API docs directly in your browser at [http://localhost:8000/docs](http://localhost:8000/docs) and inspect the exportable OpenAPI specification at [`docs/openapi.json`](docs/openapi.json).
+   Explore the interactive API docs at [http://localhost:8000/docs](http://localhost:8000/docs) and inspect the OpenAPI specification at [`docs/openapi.json`](docs/openapi.json).
+
+### 2. Mobile App Quick-Start (`mobile/`)
+
+Open a second terminal to launch the **KitchenSync + SmartBasket** mobile client:
+
+```bash
+cd mobile
+npm install --legacy-peer-deps
+
+# Run TypeScript and ESLint verification:
+npm run typecheck
+npm run lint
+
+# Start the Expo development server with a clean cache:
+npx expo start --clear
+```
+
+- **Web Browser:** Press **`w`** in the Expo terminal (or visit [http://localhost:8081](http://localhost:8081)).
+- **Physical Phone (Expo Go):** Scan the QR code in the terminal. The mobile client automatically resolves your PC's Wi-Fi LAN IP via `expo-constants` (`Constants.expoConfig.hostUri`) to reach your local FastAPI backend on port `8000`, auto-authenticates a demo household session, and syncs live.
 
 ---
 
@@ -149,89 +214,50 @@ Interactive API documentation and schema specifications are accessible via:
 - **Single-Store Ranking:** Calculates total basket cost per retailer to identify the cheapest single location.
 - **Smart Mode (2-Store Split):** Evaluates multi-store splits where buying staple items at two different stores yields lower total costs than any single store.
 - **Missing Item Handling:** Alerts users if a specific store branch lacks an item in their basket, reporting partial subtotals and missing item lists.
-- **Exact Decimal Math:** All financial calculations utilize standard `Decimal` arithmetic to guarantee zero floating-point calculation error.
+- **Exact Decimal Math:** All financial calculations utilize standard `Decimal` arithmetic (`NUMERIC(10, 2)`) to guarantee zero floating-point drift.
 
 ### 3. Price History Tracking & Intelligence (Journey 3)
 - **Chronological Timeseries:** Query historical price movements over configurable windows (30d, 90d, 1y).
 - **Trend Metrics:** Compute all-time high/low, store averages, and inflation trend direction (`INCREASING`, `DECREASING`, `STABLE`).
 - **Discount Veracity Score:** 0–100 rating identifying whether an active promotion is a genuine deal (`GENUINE_SAVINGS`) or a cosmetic discount (`ARTIFICIAL_DISCOUNT`).
 
----
+### 4. Household Pantry & Offline-First Delta Sync (Journey 4 — KitchenSync)
+- **Multi-User Households & RBAC:** Users create or join households (`homes`) with `buyer` (primary shopper) or `consumer` (household resident) roles enforced via stateless JWT authentication.
+- **Offline SQLite Mutation Queue:** Mobile status changes (`ok`, `low`, `finished`) and new items are persisted locally in SQLite (`pending_sync` table via `react-native-sqlite-storage`) and reconciled idempotently with `POST /api/v1/homes/{home_id}/pantry/sync` using **Last-Write-Wins (LWW)** conflict resolution on `updated_at` and tombstone soft-deletes (`is_deleted`).
+- **Audit Trail (`pantry_logs`):** Every state transition (`marked_low`, `marked_finished`, `restocked`, `updated`) is logged with user attribution and timestamps.
 
-## ⚖️ Phase 1 Retrospective & Technical Trade-offs
-
-During Phase 1, our primary focus was building a rigorous, mathematically exact price comparison and multi-store basket optimization engine. Key architectural choices and design trade-offs include:
-
-1. **Chain-Level Price Tracking without Branch Inventory Overhead:**
-   - **Decision:** Price tracking was modeled across 5 major national supermarket chains—**Checkers**, **Woolworths Food**, **Pick n Pay**, **SPAR**, and **Shoprite**—with branch-level representations.
-   - **Trade-off:** Rather than maintaining real-time per-shelf SKU inventory counters across thousands of individual physical stores (which introduces heavy data churn, high volatility, and fragile external store API dependencies), pricing is tracked at the chain and regional branch level. This allowed us to focus squarely on price divergence algorithms, historical inflation tracking, and optimization logic while keeping API response times sub-15ms.
-
-2. **Relational Integrity (PostgreSQL 16) vs Document Stores:**
-   - Relational schemas with strict foreign keys (`StorePrice` ↔ `Product` ↔ `Store`) and unique constraints (`(store_id, product_id)`) guarantee zero duplicate prices and prevent referential corruption.
-   - Exact precision with PostgreSQL `NUMERIC(10, 2)` and Python `Decimal` eliminated IEEE 754 floating-point drift across subtotals, promotional discounts, and split savings.
-
-3. **Deterministic UUIDv5 Fixtures:**
-   - Seed fixtures and test data use fixed-namespace UUIDv5 identifiers, enabling documentation examples, test assertions, and Postman collections to share identical deterministic IDs.
-
-4. **In-Memory Optimization Engine:**
-   - Bounded 2-store split optimization runs in $O(B \cdot S)$ time, executing basket calculations for 20+ items in $< 15\text{ ms}$ without needing external combinatorial solver daemons.
-
-For the comprehensive technical evaluation, indexing analysis, and academic decision records, refer to the [Academic Retrospective](docs/RETROSPECTIVE.md) and [Architectural Decision Records](docs/DECISIONS.md).
+### 5. Automated Pantry-to-SmartBasket Bridge & Real-Time Alerts (Journey 5 — KitchenSync)
+- **Auto-Replenishment Hook:** When a catalog-linked pantry item (`product_id IS NOT NULL`) transitions to `low` or `finished`, it automatically populates the household's active Smart Basket (`GET /api/v1/homes/{home_id}/basket`).
+- **Redis Pub/Sub WebSocket Stream:** Connected household devices receive live `ITEM_UPDATED` and `ITEM_DELETED` payloads over `WS /api/v1/homes/{home_id}/ws` (`channel: home:{home_id}`).
+- **Buyer Push Alerts (FCM):** Household `buyer` members are alerted via Firebase Cloud Messaging background tasks (with graceful simulation fallback in local/CI environments).
 
 ---
 
-## 🔮 Phase 2 Roadmap: KitchenSync Integration
+## ⚖️ Architectural Decisions & Phase 1 / Phase 2 Trade-offs
 
-In Phase 2, Smart Basket will expand from a standalone price comparison engine into a complete household grocery ecosystem through the integration of **KitchenSync**—a household pantry synchronization engine and **React Native (Expo)** mobile application.
+Key architectural choices and design trade-offs across Phase 1 and Phase 2 include:
 
-```mermaid
-flowchart LR
-    subgraph MobileApp["KitchenSync Mobile (React Native / Expo)"]
-        Scanner["Barcode Scanner<br>(Camera In-Aisle)"]
-        PantryUI["Pantry Inventory<br>(Stock & Expiry Tracking)"]
-        SmartList["Smart Shopping List<br>(Auto-Replenished)"]
-    end
+1. **Chain-Level Price Tracking without Branch Inventory Overhead (ADR-001 to ADR-005):**
+   - **Decision:** Price tracking is modeled across 5 major national supermarket chains—**Checkers**, **Woolworths Food**, **Pick n Pay**, **SPAR**, and **Shoprite**—with branch-level representations and bounded $O(B \cdot S)$ 2-store split optimization.
+   - **Trade-off:** Avoids volatile per-shelf SKU counters across thousands of physical stores while keeping multi-store split calculations under $15\text{ ms}$.
 
-    subgraph BackendEngine["Smart Basket & KitchenSync Backend (FastAPI)"]
-        AuthSvc["JWT Auth Service<br>(Household RBAC)"]
-        SyncEngine["Redis Pub/Sub<br>(Real-Time Household Sync)"]
-        PantryModels["Pantry Models<br>(Household, Inventory)"]
-        OptEngine["Smart Basket Engine<br>(Multi-Store Optimizer)"]
-    end
+2. **Unified FastAPI + PostgreSQL 16 Stack over Isolated Django Service (ADR-007):**
+   - **Decision:** Rather than running the original KitchenSync blueprint's separate Django + DRF + Channels microservice, we ported KitchenSync's household, pantry, and WebSocket domain directly into Smart Basket's FastAPI and SQLAlchemy 2.0 stack.
+   - **Trade-off:** Eliminates inter-service network latency and dual-database synchronization bugs, allowing a single database transaction to update a pantry item and upsert into `basket_items` via foreign key linkage.
 
-    subgraph DataStore["PostgreSQL 16 Database"]
-        PantryTables[("Pantry & Household<br>Tables")]
-        CatalogTables[("Products & Store Prices<br>Tables")]
-    end
+3. **Last-Write-Wins (LWW) Offline Delta-Sync & Hybrid Catalog Linkage (ADR-008):**
+   - **Decision:** `pantry_items.product_id` is a nullable foreign key to `products.id`. Catalogued items auto-replenish the household's price-comparison basket, while custom uncatalogued items (`custom_name`) are still tracked in the pantry. Offline mutations resolve conflicts deterministically via `updated_at` timestamps and `is_deleted` tombstones.
 
-    MobileApp <-->|WebSocket / REST| SyncEngine
-    MobileApp <-->|REST API| BackendEngine
-    AuthSvc --> BackendEngine
-    BackendEngine --> PantryTables
-    BackendEngine --> CatalogTables
-    PantryTables -.->|FK Link| CatalogTables
-    SmartList -->|Auto-Populate| OptEngine
-```
+4. **Redis Pub/Sub WebSocket Backplane & Resilient FCM Push Alerts (ADR-009 & ADR-010):**
+   - **Decision:** Real-time household synchronization uses `redis.asyncio` Pub/Sub with an in-memory subscriber fallback so tests and offline environments never drop events. FCM buyer alerts execute in FastAPI `BackgroundTasks` with automatic simulation fallback when Firebase credentials are omitted in CI.
 
-### Key Phase 2 Capabilities:
-1. **Household & Pantry Domain Porting:**
-   - Port KitchenSync's household and pantry data models into our FastAPI / PostgreSQL stack, supporting multi-user household groups with role-based access control.
-2. **JWT Authentication & Security:**
-   - Implement JWT-based user authentication and household invitation codes for secure family pantry sharing.
-3. **Real-Time Sync with Redis Pub/Sub:**
-   - Deploy Redis Pub/Sub and WebSockets so pantry updates (e.g., an item marked consumed or added) sync instantly across all household members' devices.
-4. **Pantry-to-SmartBasket Replenishment Bridge:**
-   - Direct foreign key linkage between KitchenSync pantry items and SmartBasket's `products` and `baskets` tables.
-   - When a pantry item falls below a user-defined threshold, it **automatically populates** the household's Smart Basket shopping list.
-   - Shoppers can instantly compare the optimal store or 2-store split for their weekly auto-replenished basket before leaving home.
-5. **Cross-Platform React Native (Expo) Mobile App:**
-   - In-store camera barcode scanning to log pantry additions and perform instant aisle price checks across competing retailers.
+For the comprehensive technical evaluation, indexing analysis, and decision log, refer to the [Academic Retrospective](docs/RETROSPECTIVE.md), [Architectural Decision Records](docs/DECISIONS.md), and [Domain Model](docs/domain-model.md).
 
 ---
 
 ## 📋 Project Status & Milestone Backlog
 
-This project is engineered iteratively following a structured backlog pipeline:
+All Phase 1 (Core Price Engine) and Phase 2 (KitchenSync Household & Mobile Integration) milestones are complete:
 
 | Phase | Milestone / Issue | Status | Reference |
 | :--- | :--- | :---: | :--- |
@@ -239,7 +265,7 @@ This project is engineered iteratively following a structured backlog pipeline:
 | **02. Design** | `[Data]` Conceptual Domain Model & Entity Relationships | 🟢 Completed | [#2](https://github.com/DyanCoded/Smart-Basket/issues/2) · [`domain-model.md`](docs/domain-model.md) |
 | **03. Architecture**| `[Arch]` Tech Stack Selection & Database Evaluation | 🟢 Completed | [#3](https://github.com/DyanCoded/Smart-Basket/issues/3) · [`DECISIONS.md`](docs/DECISIONS.md) |
 | **04. Tooling** | `[Setup]` Scaffolding, Directory Layout & Local Env | 🟢 Completed | [#4](https://github.com/DyanCoded/Smart-Basket/issues/4) · [`pyproject.toml`](pyproject.toml) |
-| **05. Data Layer** | `[Data]` Physical Database Schema & Baseline Migrations | 🟢 Completed | [#5](https://github.com/DyanCoded/Smart-Basket/issues/5) · [`alembic/`](alembic/) |
+| **05. Data Layer** | `[Data]` Physical Database Schema & Baseline Migrations | 🟢 Completed | [#5](https://github.com/DyanCoded/Smart-Basket/issues/5) · [`migrations/`](migrations/) |
 | **06. Testing Data**| `[Data]` Catalog Seeding Script & Test Data Fixtures | 🟢 Completed | [#6](https://github.com/DyanCoded/Smart-Basket/issues/6) · [`scripts/seed.py`](scripts/seed.py) |
 | **07. Core API** | `[Backend]` Product Search & Store Pricing Endpoints | 🟢 Completed | [#7](https://github.com/DyanCoded/Smart-Basket/issues/7) · [`src/api/v1/`](src/api/v1/) |
 | **08. Algorithms** | `[Backend]` Basket Calculation & Multi-Store Optimization | 🟢 Completed | [#8](https://github.com/DyanCoded/Smart-Basket/issues/8) · [`basket_service.py`](src/services/basket_service.py) |
@@ -263,7 +289,31 @@ This project is engineered iteratively following a structured backlog pipeline:
 curl -s "http://localhost:8000/api/v1/products?q=milk&limit=5" | jq .
 ```
 
-### 2. Multi-Store Basket Calculation (Single-Store Ranking & Smart Split)
+### 2. Offline Pantry Delta-Sync & Auto-Replenished Household Basket
+```bash
+# Reconcile offline SQLite mutations (marking milk 'low' auto-populates the household SmartBasket)
+curl -X POST "http://localhost:8000/api/v1/homes/{home_id}/pantry/sync" \
+  -H "Authorization: Bearer <JWT_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "last_synced_at": null,
+    "mutations": [
+      {
+        "id": "10000000-0000-4000-8000-000000000001",
+        "product_id": "6e2941e3-033d-5768-8143-5e7ebc24b874",
+        "custom_name": "Full Cream Fresh Milk 2L",
+        "quantity": "1.00",
+        "unit_type": "L",
+        "low_stock_threshold": "2.00",
+        "status": "low",
+        "updated_at": "2026-11-19T12:00:00Z",
+        "is_deleted": false
+      }
+    ]
+  }' | jq .
+```
+
+### 3. Multi-Store Basket Calculation (Single-Store Ranking & Smart Split)
 ```bash
 curl -X POST "http://localhost:8000/api/v1/baskets/calculate" \
   -H "Content-Type: application/json" \
@@ -281,7 +331,7 @@ curl -X POST "http://localhost:8000/api/v1/baskets/calculate" \
   }' | jq .
 ```
 
-### 3. Price Trend Intelligence & Deal Veracity
+### 4. Price Trend Intelligence & Deal Veracity
 ```bash
 curl -s "http://localhost:8000/api/v1/products/6e2941e3-033d-5768-8143-5e7ebc24b874/intelligence" | jq .
 ```
@@ -333,7 +383,7 @@ python scripts/export_openapi.py
 | `PATCH`| `/api/v1/homes/{home_id}/pantry/{item_id}` | Update pantry item quantity/status (auto-bridges to basket when low/finished) |
 | `DELETE`| `/api/v1/homes/{home_id}/pantry/{item_id}` | Soft-delete a pantry item with tombstone record |
 | `POST`| `/api/v1/homes/{home_id}/pantry/sync` | Offline delta sync: reconcile client mutations with LWW and return deltas |
-| `GET` | `/api/v1/homes/{home_id}/pantry/basket` | View the household's active auto-replenished Smart Basket |
+| `GET` | `/api/v1/homes/{home_id}/basket` | View the household's active auto-replenished Smart Basket |
 | `WS`  | `/api/v1/homes/{home_id}/ws` | Real-time WebSocket stream for pantry mutations backed by Redis Pub/Sub |
 
 ---
@@ -342,10 +392,10 @@ python scripts/export_openapi.py
 
 For academic review, architecture justifications, and grading artifacts:
 - **[Academic Retrospective & Technical Evaluation](docs/RETROSPECTIVE.md):** In-depth discussion of domain modeling, combinatorial complexity, indexing strategy, benchmarks, trade-offs, and Phase 2 roadmap.
-- **[Architectural Decision Records (ADR)](docs/DECISIONS.md):** Documented architectural choices and trade-offs.
-- **[Domain Model Specification](docs/domain-model.md):** Conceptual domain entities and normalization rules.
+- **[Architectural Decision Records (ADR)](docs/DECISIONS.md):** Documented architectural choices and trade-offs (ADR-001 through ADR-010).
+- **[Domain Model Specification](docs/domain-model.md):** Conceptual domain entities and normalization rules across all 12 tables.
 - **[User Journeys Specification](docs/SPECIFICATION.md):** Core personas and user workflows.
-- **[Release Notes v1.0.0](docs/RELEASE_NOTES_v1.0.0.md):** Final Phase 1 milestone deliverables and changelog.
+- **[Release Notes v1.0.0](docs/RELEASE_NOTES_v1.0.0.md):** Phase 1 milestone deliverables and changelog.
 
 ---
 

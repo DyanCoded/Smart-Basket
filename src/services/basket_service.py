@@ -34,16 +34,20 @@ class ProductNotFoundError(Exception):
 def calculate_basket(
     session: Session,
     items: Sequence[BasketItemRequest],
+    store_ids: Sequence[uuid.UUID] | None = None,
+    retailer_slugs: Sequence[str] | None = None,
 ) -> BasketCalculationResponse:
-    """Calculate multi-store basket totals and optimal split-basket savings.
+    """Calculate multi-chain basket totals and optimal split-basket savings.
 
     Args:
         session: Active SQLAlchemy database session.
         items: List of product UUIDs and requested quantities.
+        store_ids: Optional subset of canonical chain store UUIDs to include.
+        retailer_slugs: Optional subset of retailer slugs to include.
 
     Returns:
-        BasketCalculationResponse containing ranked single-store totals,
-        the cheapest single store, and optimal multi-store split allocation.
+        BasketCalculationResponse containing ranked single-chain totals,
+        the cheapest single chain, and optimal Smart Mode split allocation.
 
     Raises:
         ProductNotFoundError: If any requested product does not exist.
@@ -68,15 +72,23 @@ def calculate_basket(
         if pid not in product_map:
             raise ProductNotFoundError(pid)
 
-    # 3. Fetch canonical active retailer chains (1 store record per national retailer)
+    # 3. Fetch canonical active retailer chains (filtered if store_ids/slugs provided)
+    store_stmt = (
+        select(Store)
+        .join(Retailer, Store.retailer_id == Retailer.id)
+        .options(joinedload(Store.retailer))
+        .where(Store.is_active.is_(True))
+    )
+    if store_ids is not None:
+        store_stmt = store_stmt.where(Store.id.in_(list(store_ids)))
+    if retailer_slugs is not None:
+        normalized_slugs = [
+            slug.strip().lower() for slug in retailer_slugs if slug.strip()
+        ]
+        store_stmt = store_stmt.where(Retailer.slug.in_(normalized_slugs))
+
     raw_stores = (
-        session.scalars(
-            select(Store)
-            .join(Retailer, Store.retailer_id == Retailer.id)
-            .options(joinedload(Store.retailer))
-            .where(Store.is_active.is_(True))
-            .order_by(Retailer.name.asc(), Store.name.asc())
-        )
+        session.scalars(store_stmt.order_by(Retailer.name.asc(), Store.name.asc()))
         .unique()
         .all()
     )
@@ -87,12 +99,18 @@ def calculate_basket(
             stores_by_retailer[s.retailer_id] = s
     stores = list(stores_by_retailer.values())
 
-    # 4. Fetch all active chain-level prices (no branch stock/inventory filtering)
-    prices = session.scalars(
-        select(StorePrice).where(
-            StorePrice.product_id.in_(requested_product_ids),
-        )
-    ).all()
+    # 4. Fetch active chain-level prices for the selected chains
+    selected_store_ids = [s.id for s in stores]
+    prices = (
+        session.scalars(
+            select(StorePrice).where(
+                StorePrice.product_id.in_(requested_product_ids),
+                StorePrice.store_id.in_(selected_store_ids),
+            )
+        ).all()
+        if selected_store_ids
+        else []
+    )
 
     # Map (store_id, product_id) -> StorePrice
     price_map: dict[tuple[uuid.UUID, uuid.UUID], StorePrice] = {
@@ -163,8 +181,8 @@ def calculate_basket(
         (s for s in ranked_stores if s.is_complete_match), None
     )
 
-    # 6. Multi-Store Split Optimization (Smart Mode)
-    optimal_split = _optimize_two_store_split(
+    # 6. Multi-Chain Split Optimization (Smart Mode across selected chains)
+    optimal_split = _optimize_multi_chain_split(
         stores=stores,
         requested_product_ids=requested_product_ids,
         aggregated_quantities=aggregated_quantities,
@@ -181,7 +199,7 @@ def calculate_basket(
     )
 
 
-def _optimize_two_store_split(
+def _optimize_multi_chain_split(
     stores: Sequence[Store],
     requested_product_ids: list[uuid.UUID],
     aggregated_quantities: dict[uuid.UUID, Decimal],
@@ -189,147 +207,98 @@ def _optimize_two_store_split(
     price_map: dict[tuple[uuid.UUID, uuid.UUID], StorePrice],
     cheapest_single_store: StoreBasketTotal | None,
 ) -> OptimalSplitResult | None:
-    """Evaluate 2-store combinations to find maximal shopper savings."""
+    """Evaluate subsets of selected national chains to maximize shopper savings.
+
+    Evaluates combinations of size 1..len(stores), allocating each basket item
+    to the lowest-priced chain in the subset and breaking ties by fewest chains
+    used.
+    """
     if len(stores) < 2 or not requested_product_ids:
         return None
 
-    best_pair_result: dict[str, Any] | None = None
+    best_result: dict[str, Any] | None = None
     total_req_count = len(requested_product_ids)
 
-    # Iterate through all store pairs
-    for store_a, store_b in itertools.combinations(stores, 2):
-        alloc_a: list[BasketItemDetail] = []
-        alloc_b: list[BasketItemDetail] = []
-        pair_total = Decimal("0.00")
-        covered_count = 0
+    for subset_size in range(1, len(stores) + 1):
+        for store_subset in itertools.combinations(stores, subset_size):
+            allocations: dict[uuid.UUID, list[BasketItemDetail]] = {
+                s.id: [] for s in store_subset
+            }
+            subset_total = Decimal("0.00")
+            covered_count = 0
 
-        for pid in requested_product_ids:
-            qty = aggregated_quantities[pid]
-            pname = product_map[pid]
-            sp_a = price_map.get((store_a.id, pid))
-            sp_b = price_map.get((store_b.id, pid))
+            for pid in requested_product_ids:
+                qty = aggregated_quantities[pid]
+                pname = product_map[pid]
 
-            if sp_a is None and sp_b is None:
-                continue
+                # Pick the lowest-priced chain in this subset for pid
+                best_store: Store | None = None
+                best_sp: StorePrice | None = None
+                for candidate_store in store_subset:
+                    sp = price_map.get((candidate_store.id, pid))
+                    if sp is None:
+                        continue
+                    if best_sp is None or sp.price < best_sp.price:
+                        best_store = candidate_store
+                        best_sp = sp
 
-            covered_count += 1
-            if sp_a is not None and sp_b is not None:
-                # Both have the item: allocate to the cheaper store
-                if sp_a.price <= sp_b.price:
-                    subtotal = (sp_a.price * qty).quantize(Decimal("0.01"))
-                    alloc_a.append(
+                if best_store is not None and best_sp is not None:
+                    covered_count += 1
+                    subtotal = (best_sp.price * qty).quantize(Decimal("0.01"))
+                    allocations[best_store.id].append(
                         BasketItemDetail(
                             product_id=pid,
                             product_name=pname,
                             quantity=qty,
-                            unit_price=sp_a.price,
+                            unit_price=best_sp.price,
                             subtotal=subtotal,
-                            is_promotional=sp_a.is_promotional,
+                            is_promotional=best_sp.is_promotional,
                         )
                     )
-                    pair_total += subtotal
-                else:
-                    subtotal = (sp_b.price * qty).quantize(Decimal("0.01"))
-                    alloc_b.append(
-                        BasketItemDetail(
-                            product_id=pid,
-                            product_name=pname,
-                            quantity=qty,
-                            unit_price=sp_b.price,
-                            subtotal=subtotal,
-                            is_promotional=sp_b.is_promotional,
-                        )
-                    )
-                    pair_total += subtotal
-            elif sp_a is not None:
-                subtotal = (sp_a.price * qty).quantize(Decimal("0.01"))
-                alloc_a.append(
-                    BasketItemDetail(
-                        product_id=pid,
-                        product_name=pname,
-                        quantity=qty,
-                        unit_price=sp_a.price,
-                        subtotal=subtotal,
-                        is_promotional=sp_a.is_promotional,
-                    )
-                )
-                pair_total += subtotal
+                    subset_total += subtotal
+
+            active_stores = [s for s in store_subset if allocations[s.id]]
+            candidate = {
+                "stores": active_stores,
+                "allocations": allocations,
+                "total_price": subset_total.quantize(Decimal("0.01")),
+                "is_complete": covered_count == total_req_count,
+                "covered_count": covered_count,
+                "stores_used": len(active_stores),
+            }
+
+            if best_result is None:
+                best_result = candidate
             else:
-                assert sp_b is not None
-                subtotal = (sp_b.price * qty).quantize(Decimal("0.01"))
-                alloc_b.append(
-                    BasketItemDetail(
-                        product_id=pid,
-                        product_name=pname,
-                        quantity=qty,
-                        unit_price=sp_b.price,
-                        subtotal=subtotal,
-                        is_promotional=sp_b.is_promotional,
-                    )
+                # Prioritize: 1) more items covered, 2) lower total, 3) fewer chains
+                cand_rank = (
+                    candidate["covered_count"],
+                    -candidate["total_price"],
+                    -candidate["stores_used"],
                 )
-                pair_total += subtotal
+                best_rank = (
+                    best_result["covered_count"],
+                    -best_result["total_price"],
+                    -best_result["stores_used"],
+                )
+                if cand_rank > best_rank:
+                    best_result = candidate
 
-        is_complete = covered_count == total_req_count
-
-        # Score candidate pair: prioritize completeness, then lowest price
-        # tuple: (is_complete, covered_count, -pair_total)
-        candidate = {
-            "store_a": store_a,
-            "store_b": store_b,
-            "alloc_a": alloc_a,
-            "alloc_b": alloc_b,
-            "total_price": pair_total.quantize(Decimal("0.01")),
-            "is_complete": is_complete,
-            "covered_count": covered_count,
-        }
-
-        if best_pair_result is None:
-            best_pair_result = candidate
-        else:
-            # Better if:
-            # 1. More items covered
-            # 2. Or same items covered but lower price
-            better = False
-            if candidate["covered_count"] > best_pair_result["covered_count"]:
-                better = True
-            elif candidate["covered_count"] == best_pair_result["covered_count"]:
-                if candidate["total_price"] < best_pair_result["total_price"]:
-                    better = True
-            if better:
-                best_pair_result = candidate
-
-    if best_pair_result is None:
+    if best_result is None:
         return None
 
-    # Calculate savings compared to cheapest single store
-    pair_total = best_pair_result["total_price"]
+    split_total = best_result["total_price"]
     stores_output: list[SplitStoreAllocation] = []
-
-    sub_a = sum(
-        (item.subtotal for item in best_pair_result["alloc_a"]), Decimal("0.00")
-    )
-    if best_pair_result["alloc_a"]:
+    for chain_store in best_result["stores"]:
+        chain_items = best_result["allocations"][chain_store.id]
+        chain_subtotal = sum((item.subtotal for item in chain_items), Decimal("0.00"))
         stores_output.append(
             SplitStoreAllocation(
-                store_id=best_pair_result["store_a"].id,
-                store_name=best_pair_result["store_a"].retailer.name,
-                retailer_name=best_pair_result["store_a"].retailer.name,
-                items=best_pair_result["alloc_a"],
-                subtotal=sub_a.quantize(Decimal("0.01")),
-            )
-        )
-
-    sub_b = sum(
-        (item.subtotal for item in best_pair_result["alloc_b"]), Decimal("0.00")
-    )
-    if best_pair_result["alloc_b"]:
-        stores_output.append(
-            SplitStoreAllocation(
-                store_id=best_pair_result["store_b"].id,
-                store_name=best_pair_result["store_b"].retailer.name,
-                retailer_name=best_pair_result["store_b"].retailer.name,
-                items=best_pair_result["alloc_b"],
-                subtotal=sub_b.quantize(Decimal("0.01")),
+                store_id=chain_store.id,
+                store_name=chain_store.retailer.name,
+                retailer_name=chain_store.retailer.name,
+                items=chain_items,
+                subtotal=chain_subtotal.quantize(Decimal("0.01")),
             )
         )
 
@@ -337,24 +306,23 @@ def _optimize_two_store_split(
     savings_pct = Decimal("0.00")
     cheaper_than_single = False
 
-    if cheapest_single_store and best_pair_result["is_complete"]:
-        if pair_total < cheapest_single_store.total_price:
-            savings_amount = (cheapest_single_store.total_price - pair_total).quantize(
+    if cheapest_single_store and best_result["is_complete"]:
+        if split_total < cheapest_single_store.total_price:
+            savings_amount = (cheapest_single_store.total_price - split_total).quantize(
                 Decimal("0.01")
             )
             savings_pct = (
                 (savings_amount / cheapest_single_store.total_price) * Decimal("100.00")
             ).quantize(Decimal("0.01"))
             cheaper_than_single = True
-    elif best_pair_result["is_complete"] and not cheapest_single_store:
-        # No single store covers the basket, but the pair does!
+    elif best_result["is_complete"] and not cheapest_single_store:
         cheaper_than_single = True
 
     return OptimalSplitResult(
         stores=stores_output,
-        total_price=pair_total,
+        total_price=split_total,
         savings_amount=savings_amount,
         savings_percentage=savings_pct,
-        is_complete_match=best_pair_result["is_complete"],
+        is_complete_match=best_result["is_complete"],
         cheaper_than_single_store=cheaper_than_single,
     )

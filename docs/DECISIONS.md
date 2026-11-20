@@ -1,6 +1,7 @@
 # Architectural Decision Records (ADR)
 
 ## Log Summary
+- **2026-11-20:** Added Store Selection Checklist UX (`Included Stores` multi-select pills on mobile Optimizer screen) and optional `store_ids` / `retailer_slugs` filtering with multi-chain subset optimization on `POST /api/v1/baskets/calculate` (ADR-012).
 - **2026-11-20:** Aligned catalog seeding, basket calculation engine, API routes, and mobile comparison UI strictly to national chain-level pricing across 5 canonical South African supermarket chains (Shoprite, Checkers, Pick n Pay, Woolworths Food, SPAR) without branch locations or store inventory/stock filtering (ADR-011).
 - **2026-11-19:** Implemented stateless JWT authentication (OAuth2PasswordBearer), bcrypt password hashing, and collaborative household management endpoints (users, homes, memberships with buyer/consumer RBAC) with membership dependency guards (Issue #15).
 - **2026-11-19:** Implemented physical database schema and Alembic migration 0002_add_pantry_and_households for multi-user households (users, homes, memberships) and offline-capable pantry inventory tracking (pantry_items, pantry_logs, baskets.home_id) (Issue #14).
@@ -330,3 +331,25 @@ Early seed fixtures modeled 8 physical branch locations (e.g. *Checkers Sandton 
 ### Consequences & Trade-offs
 - **Positive:** Clean 5-retailer comparison results with zero duplicate chains, zero artificial missing-item warnings, and exact parity with Smart-Basket's national chain pricing domain scope.
 - **Negative / Mitigations:** Retains the underlying `stores` table foreign key structure (`store_id`) to avoid breaking database schema migrations or OpenAPI response field shapes (`store_id`, `store_name`, `retailer_name`), keeping all API contracts backwards compatible.
+
+---
+
+## ADR-012: Store Selection Checklist & Subset-Filtered Smart Mode Split
+
+### Status
+**Accepted** (2026-11-20)
+
+### Context & Problem Statement
+Shoppers rarely visit an arbitrary count of retailers (`max_stores = N`)—instead, they know exactly which supermarkets are near their home or commute (e.g., *Checkers* and *Pick n Pay* in the same mall, without *Shoprite* nearby). A Store Selection Checklist lets users directly pick which of the 5 national chains to compare and split across.
+
+### Decision & Technical Rationale
+- **Optional Chain Filters on `POST /api/v1/baskets/calculate` (`src/api/v1/schemas.py`, `src/services/basket_service.py`):**
+  - Added optional `store_ids: Optional[List[UUID]] = Field(default=None, min_length=1)` and `retailer_slugs: Optional[List[str]] = Field(default=None, min_length=1)` to `BasketCalculationRequest`.
+  - Passing an empty list (`[]`) returns HTTP `422 Unprocessable Entity`; omitting the field defaults to all 5 active national chains.
+  - Upgraded the Smart Mode solver (`_optimize_multi_chain_split`) to evaluate all combinations of the selected chains (`1..len(selected_stores)` — at most $2^5 - 1 = 31$ subsets), allocating each item to the cheapest selected chain and breaking ties by fewest chains used.
+- **Mobile Optimizer Store Selection Checklist (`mobile/app/(tabs)/explore.tsx`):**
+  - Added an **Included Stores** multi-select pill checklist at the top of the SmartBasket Optimizer screen with all 5 national chains selected by default, guarding against unchecking the final remaining store and recalculating totals + Smart Mode split on every toggle.
+
+### Consequences & Trade-offs
+- **Positive:** Intuitive real-world shopper control over exact nearby retailers; zero performance overhead (at most 31 subsets across 5 national chains); full backwards compatibility for existing callers omitting filter fields.
+- **Negative / Mitigations:** Toggling pills triggers fresh API calls; mitigated by sub-15ms backend calculation latency and instant offline fallback parity in `mobile/services/sync.ts`.

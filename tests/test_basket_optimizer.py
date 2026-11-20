@@ -170,7 +170,7 @@ def test_basket_calculation_three_staple_replenishment_split_savings(
     assert cheapest_single is not None
     assert split is not None
     assert split["cheaper_than_single_store"] is True
-    assert len(split["stores"]) == 2
+    assert len(split["stores"]) >= 2
     assert Decimal(str(split["savings_amount"])) > Decimal("0.00")
     assert Decimal(str(split["total_price"])) < Decimal(
         str(cheapest_single["total_price"])
@@ -182,6 +182,118 @@ def test_basket_calculation_three_staple_replenishment_split_savings(
     # All participating chains must use canonical retailer names
     for alloc in split["stores"]:
         assert alloc["store_name"] == alloc["retailer_name"]
+
+
+def test_basket_calculation_filter_by_retailer_slugs(
+    client: TestClient, raw_catalog_fixtures
+):
+    """Verify retailer_slugs filters ranked chains and Smart Mode split."""
+    prods = raw_catalog_fixtures["products"]
+    milk = next(p for p in prods if "Milk" in p["name"])
+    bread = next(p for p in prods if "White Bread" in p["name"])
+    eggs = next(p for p in prods if "Eggs" in p["name"])
+
+    payload = {
+        "items": [
+            {"product_id": str(milk["id"]), "quantity": "2.00"},
+            {"product_id": str(bread["id"]), "quantity": "1.00"},
+            {"product_id": str(eggs["id"]), "quantity": "1.00"},
+        ],
+        "retailer_slugs": ["checkers", "pick-n-pay"],
+    }
+
+    response = client.post("/api/v1/baskets/calculate", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+
+    assert len(data["ranked_stores"]) == 2
+    assert {s["retailer_name"] for s in data["ranked_stores"]} == {
+        "Checkers",
+        "Pick n Pay",
+    }
+    assert data["cheapest_single_store"]["retailer_name"] == "Checkers"
+
+    split = data["optimal_split"]
+    assert split is not None
+    assert split["cheaper_than_single_store"] is True
+    assert {s["retailer_name"] for s in split["stores"]} == {
+        "Checkers",
+        "Pick n Pay",
+    }
+    assert Decimal(str(split["savings_amount"])) > Decimal("0.00")
+
+
+def test_basket_calculation_filter_by_store_ids_and_single_chain(
+    client: TestClient, raw_catalog_fixtures
+):
+    """Verify store_ids filters chains and 1-store selection disables split."""
+    prods = raw_catalog_fixtures["products"]
+    stores = raw_catalog_fixtures["stores"]
+    milk = next(p for p in prods if "Milk" in p["name"])
+    bread = next(p for p in prods if "White Bread" in p["name"])
+    shoprite = next(s for s in stores if s["name"] == "Shoprite")
+    checkers = next(s for s in stores if s["name"] == "Checkers")
+
+    # 2-chain filter by store_ids
+    res_two = client.post(
+        "/api/v1/baskets/calculate",
+        json={
+            "items": [
+                {"product_id": str(milk["id"]), "quantity": "2.00"},
+                {"product_id": str(bread["id"]), "quantity": "1.00"},
+            ],
+            "store_ids": [str(shoprite["id"]), str(checkers["id"])],
+        },
+    )
+    assert res_two.status_code == 200
+    data_two = res_two.json()
+    assert len(data_two["ranked_stores"]) == 2
+    assert {s["retailer_name"] for s in data_two["ranked_stores"]} == {
+        "Checkers",
+        "Shoprite",
+    }
+    assert data_two["optimal_split"] is not None
+    assert data_two["optimal_split"]["cheaper_than_single_store"] is True
+
+    # 1-chain filter -> no split recommendation
+    res_one = client.post(
+        "/api/v1/baskets/calculate",
+        json={
+            "items": [{"product_id": str(milk["id"]), "quantity": "2.00"}],
+            "store_ids": [str(shoprite["id"])],
+        },
+    )
+    assert res_one.status_code == 200
+    data_one = res_one.json()
+    assert len(data_one["ranked_stores"]) == 1
+    assert data_one["ranked_stores"][0]["retailer_name"] == "Shoprite"
+    assert data_one["cheapest_single_store"]["retailer_name"] == "Shoprite"
+    assert data_one["optimal_split"] is None
+
+
+def test_basket_calculation_empty_store_filter_returns_422(
+    client: TestClient, raw_catalog_fixtures
+):
+    """Verify passing an empty store_ids or retailer_slugs list returns 422."""
+    milk_id = str(raw_catalog_fixtures["products"][0]["id"])
+
+    res_empty_ids = client.post(
+        "/api/v1/baskets/calculate",
+        json={
+            "items": [{"product_id": milk_id, "quantity": "1.00"}],
+            "store_ids": [],
+        },
+    )
+    assert res_empty_ids.status_code == 422
+
+    res_empty_slugs = client.post(
+        "/api/v1/baskets/calculate",
+        json={
+            "items": [{"product_id": milk_id, "quantity": "1.00"}],
+            "retailer_slugs": [],
+        },
+    )
+    assert res_empty_slugs.status_code == 422
 
 
 def test_basket_calculation_quantity_multiplication(

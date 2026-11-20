@@ -136,6 +136,8 @@ export interface BasketItemRequest {
 
 export interface BasketCalculationRequest {
   items: BasketItemRequest[];
+  store_ids?: string[];
+  retailer_slugs?: string[];
 }
 
 export interface StoreBasketItemDetail {

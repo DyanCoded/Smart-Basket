@@ -2182,7 +2182,7 @@
           "baskets"
         ],
         "summary": "Calculate national retailer basket prices and smart split optimization",
-        "description": "Evaluates a grocery shopping basket across the 5 monitored South African national supermarket chains (Shoprite, Checkers, Pick n Pay, Woolworths Food, and SPAR). Returns a deterministic price ranking by chain name (cheapest first) and the optimal 2-chain split (Smart Mode) that maximizes consumer savings.",
+        "description": "Evaluates a grocery shopping basket across the 5 monitored South African national supermarket chains (Shoprite, Checkers, Pick n Pay, Woolworths Food, and SPAR), or a user-selected subset via store_ids or retailer_slugs. Returns a deterministic price ranking by chain name (cheapest first) and the optimal Smart Mode multi-chain split across the selected retailers.",
         "operationId": "calculate_basket_api_v1_baskets_calculate_post",
         "requestBody": {
           "content": {
@@ -2395,6 +2395,39 @@
             "minItems": 1,
             "title": "Items",
             "description": "List of grocery products and required quantities"
+          },
+          "store_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "type": "array",
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Store Ids",
+            "description": "Optional list of canonical retailer chain store UUIDs to include in comparison and Smart Mode split (defaults to all 5 active chains)."
+          },
+          "retailer_slugs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retailer Slugs",
+            "description": "Optional list of retailer slugs (e.g. 'shoprite', 'checkers', 'pick-n-pay', 'spar', 'woolworths-food') to include in comparison and Smart Mode split (defaults to all 5 active chains)."
           }
         },
         "type": "object",

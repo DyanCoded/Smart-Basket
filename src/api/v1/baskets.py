@@ -57,12 +57,12 @@ _EX_EGGS_UUID = "4ca9f9c4-dea2-5f16-8ffb-4ec70ea08382"
     description=(
         "Evaluates a grocery shopping basket across the 5 monitored South African "
         "national supermarket chains (Shoprite, Checkers, Pick n Pay, Woolworths Food, "
-        "and SPAR). Returns a deterministic price ranking by chain name (cheapest "
-        "first) and the optimal 2-chain split (Smart Mode) that maximizes consumer "
-        "savings."
+        "and SPAR), or a user-selected subset via store_ids or retailer_slugs. "
+        "Returns a deterministic price ranking by chain name (cheapest first) and "
+        "the optimal Smart Mode multi-chain split across the selected retailers."
     ),
     response_description=(
-        "Ranked national retailer totals and optimal 2-chain split optimization."
+        "Ranked national retailer totals and optimal multi-chain split optimization."
     ),
 )
 def calculate_basket(
@@ -115,11 +115,13 @@ def calculate_basket(
         },
     ),
 ) -> BasketCalculationResponse:
-    """Calculate basket total across stores and find optimal split basket."""
+    """Calculate basket total across selected chains and find optimal split basket."""
     try:
         return basket_service.calculate_basket(
             session=db,
             items=payload.items,
+            store_ids=payload.store_ids,
+            retailer_slugs=payload.retailer_slugs,
         )
     except ProductNotFoundError as exc:
         raise HTTPException(

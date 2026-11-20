@@ -31,6 +31,40 @@ import {
   PantrySyncResponse,
 } from '@/types/api';
 
+export interface NationalRetailerOption {
+  slug: string;
+  name: string;
+  store_id: string;
+}
+
+export const NATIONAL_RETAILER_CHAINS: NationalRetailerOption[] = [
+  {
+    slug: 'shoprite',
+    name: 'Shoprite',
+    store_id: 'd1b6fc61-ff2b-5935-8d92-9eec487eeaae',
+  },
+  {
+    slug: 'checkers',
+    name: 'Checkers',
+    store_id: '26f7a89e-0e58-56e3-a225-8c7310382985',
+  },
+  {
+    slug: 'pick-n-pay',
+    name: 'Pick n Pay',
+    store_id: 'cd86c9b4-176c-551e-aebc-b91bfdce86c1',
+  },
+  {
+    slug: 'spar',
+    name: 'SPAR',
+    store_id: 'c9753b0f-5341-5001-a2dc-3996ff85a7bc',
+  },
+  {
+    slug: 'woolworths-food',
+    name: 'Woolworths Food',
+    store_id: '30c7639b-d34c-597b-9399-68e3ff9de7a7',
+  },
+];
+
 // Deterministic UUIDv5 catalog product IDs from SmartBasket seed fixtures
 export const SEED_CATALOG_PRODUCTS = {
   MILK_2L: {
@@ -153,7 +187,8 @@ export interface HouseholdBasketComparisonResult {
 }
 
 export async function syncAndCalculateSmartBasket(
-  homeId: string
+  homeId: string,
+  selectedRetailerSlugs?: string[]
 ): Promise<HouseholdBasketComparisonResult> {
   // 1. Flush any queued offline mutations so low/finished items bridge to basket
   const syncResult = await syncOfflineQueueToServer(homeId);
@@ -198,9 +233,15 @@ export async function syncAndCalculateSmartBasket(
     ];
   }
 
+  const activeSlugs =
+    selectedRetailerSlugs && selectedRetailerSlugs.length > 0
+      ? selectedRetailerSlugs
+      : undefined;
+
   try {
     const calculation = await calculateMultiStoreBasket({
       items: calcRequestItems,
+      ...(activeSlugs ? { retailer_slugs: activeSlugs } : {}),
     });
     return {
       basket,
@@ -211,165 +252,179 @@ export async function syncAndCalculateSmartBasket(
     // Offline deterministic price calculation fallback matching seed catalog prices
     return {
       basket,
-      calculation: buildOfflineFallbackCalculation(calcRequestItems),
+      calculation: buildOfflineFallbackCalculation(calcRequestItems, activeSlugs),
       isLiveBackend: false,
     };
   }
 }
 
+const OFFLINE_STAPLE_PRICES: Record<
+  string,
+  Record<string, { price: number; promo: boolean }>
+> = {
+  [SEED_CATALOG_PRODUCTS.MILK_2L.id]: {
+    shoprite: { price: 33.99, promo: false },
+    checkers: { price: 31.99, promo: true },
+    'pick-n-pay': { price: 38.99, promo: false },
+    spar: { price: 40.49, promo: false },
+    'woolworths-food': { price: 42.99, promo: false },
+  },
+  [SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.id]: {
+    shoprite: { price: 15.99, promo: false },
+    checkers: { price: 17.99, promo: false },
+    'pick-n-pay': { price: 16.99, promo: false },
+    spar: { price: 18.49, promo: false },
+    'woolworths-food': { price: 19.99, promo: false },
+  },
+  [SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.id]: {
+    shoprite: { price: 58.99, promo: false },
+    checkers: { price: 64.99, promo: false },
+    'pick-n-pay': { price: 54.99, promo: true },
+    spar: { price: 66.49, promo: false },
+    'woolworths-food': { price: 62.99, promo: false },
+  },
+};
+
+function getOfflineProductName(productId: string): string {
+  if (productId === SEED_CATALOG_PRODUCTS.MILK_2L.id) {
+    return SEED_CATALOG_PRODUCTS.MILK_2L.name;
+  }
+  if (productId === SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.id) {
+    return SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.name;
+  }
+  if (productId === SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.id) {
+    return SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.name;
+  }
+  return 'Catalog Staple';
+}
+
 function buildOfflineFallbackCalculation(
-  items: BasketItemRequest[]
+  items: BasketItemRequest[],
+  selectedSlugs?: string[]
 ): BasketCalculationResponse {
-  const count = items.length;
+  const allowedChains =
+    selectedSlugs && selectedSlugs.length > 0
+      ? NATIONAL_RETAILER_CHAINS.filter((c) => selectedSlugs.includes(c.slug))
+      : NATIONAL_RETAILER_CHAINS;
+
+  const rankedStores = allowedChains
+    .map((chain) => {
+      let total = 0;
+      const lineItems = items.map((item) => {
+        const qty = Number(item.quantity) || 1;
+        const entry = OFFLINE_STAPLE_PRICES[item.product_id]?.[chain.slug] ?? {
+          price: 35.0,
+          promo: false,
+        };
+        const subtotal = Number((entry.price * qty).toFixed(2));
+        total += subtotal;
+        return {
+          product_id: item.product_id,
+          product_name: getOfflineProductName(item.product_id),
+          quantity: qty.toFixed(2),
+          unit_price: entry.price.toFixed(2),
+          subtotal: subtotal.toFixed(2),
+          is_promotional: entry.promo,
+        };
+      });
+
+      return {
+        store_id: chain.store_id,
+        store_name: chain.name,
+        branch_code: null,
+        retailer_name: chain.name,
+        total_price: total.toFixed(2),
+        is_complete_match: true,
+        items_available_count: items.length,
+        total_items_count: items.length,
+        items: lineItems,
+        missing_items: [],
+      };
+    })
+    .sort((a, b) => Number(a.total_price) - Number(b.total_price));
+
+  const cheapestSingle = rankedStores[0] ?? null;
+
+  if (allowedChains.length < 2 || !cheapestSingle) {
+    return {
+      total_items_requested: items.length,
+      cheapest_single_store: cheapestSingle,
+      optimal_split: null,
+      ranked_stores: rankedStores,
+    };
+  }
+
+  // Allocate each item to the lowest-priced selected chain
+  const allocMap = new Map<
+    string,
+    {
+      chain: NationalRetailerOption;
+      items: BasketCalculationResponse['ranked_stores'][number]['items'];
+      subtotal: number;
+    }
+  >();
+  let splitTotal = 0;
+
+  for (const item of items) {
+    const qty = Number(item.quantity) || 1;
+    let bestChain = allowedChains[0];
+    let bestPrice = Infinity;
+    let bestPromo = false;
+
+    for (const chain of allowedChains) {
+      const entry = OFFLINE_STAPLE_PRICES[item.product_id]?.[chain.slug] ?? {
+        price: 35.0,
+        promo: false,
+      };
+      if (entry.price < bestPrice) {
+        bestPrice = entry.price;
+        bestPromo = entry.promo;
+        bestChain = chain;
+      }
+    }
+
+    const subtotal = Number((bestPrice * qty).toFixed(2));
+    splitTotal += subtotal;
+
+    const existing = allocMap.get(bestChain.store_id) ?? {
+      chain: bestChain,
+      items: [],
+      subtotal: 0,
+    };
+    existing.items.push({
+      product_id: item.product_id,
+      product_name: getOfflineProductName(item.product_id),
+      quantity: qty.toFixed(2),
+      unit_price: bestPrice.toFixed(2),
+      subtotal: subtotal.toFixed(2),
+      is_promotional: bestPromo,
+    });
+    existing.subtotal = Number((existing.subtotal + subtotal).toFixed(2));
+    allocMap.set(bestChain.store_id, existing);
+  }
+
+  const singleTotal = Number(cheapestSingle.total_price);
+  const savings = Math.max(0, Number((singleTotal - splitTotal).toFixed(2)));
+  const savingsPct =
+    singleTotal > 0 ? ((savings / singleTotal) * 100).toFixed(2) : '0.00';
+
   return {
-    total_items_requested: count,
-    cheapest_single_store: {
-      store_id: 'd1b6fc61-ff2b-5935-8d92-9eec487eeaae',
-      store_name: 'Shoprite',
-      branch_code: null,
-      retailer_name: 'Shoprite',
-      total_price: '142.96',
-      is_complete_match: true,
-      items_available_count: count,
-      total_items_count: count,
-      items: [
-        {
-          product_id: SEED_CATALOG_PRODUCTS.MILK_2L.id,
-          product_name: SEED_CATALOG_PRODUCTS.MILK_2L.name,
-          quantity: '2.00',
-          unit_price: '33.99',
-          subtotal: '67.98',
-          is_promotional: false,
-        },
-        {
-          product_id: SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.id,
-          product_name: SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.name,
-          quantity: '1.00',
-          unit_price: '15.99',
-          subtotal: '15.99',
-          is_promotional: false,
-        },
-        {
-          product_id: SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.id,
-          product_name: SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.name,
-          quantity: '1.00',
-          unit_price: '58.99',
-          subtotal: '58.99',
-          is_promotional: false,
-        },
-      ],
-      missing_items: [],
-    },
+    total_items_requested: items.length,
+    cheapest_single_store: cheapestSingle,
     optimal_split: {
-      stores: [
-        {
-          store_id: '26f7a89e-0e58-56e3-a225-8c7310382985',
-          store_name: 'Checkers',
-          retailer_name: 'Checkers',
-          subtotal: '63.98',
-          items: [
-            {
-              product_id: SEED_CATALOG_PRODUCTS.MILK_2L.id,
-              product_name: SEED_CATALOG_PRODUCTS.MILK_2L.name,
-              quantity: '2.00',
-              unit_price: '31.99',
-              subtotal: '63.98',
-              is_promotional: true,
-            },
-          ],
-        },
-        {
-          store_id: 'cd86c9b4-176c-551e-aebc-b91bfdce86c1',
-          store_name: 'Pick n Pay',
-          retailer_name: 'Pick n Pay',
-          subtotal: '71.98',
-          items: [
-            {
-              product_id: SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.id,
-              product_name: SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.name,
-              quantity: '1.00',
-              unit_price: '16.99',
-              subtotal: '16.99',
-              is_promotional: false,
-            },
-            {
-              product_id: SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.id,
-              product_name: SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.name,
-              quantity: '1.00',
-              unit_price: '54.99',
-              subtotal: '54.99',
-              is_promotional: true,
-            },
-          ],
-        },
-      ],
-      total_price: '135.96',
-      savings_amount: '7.00',
-      savings_percentage: '4.90',
+      stores: Array.from(allocMap.values()).map((entry) => ({
+        store_id: entry.chain.store_id,
+        store_name: entry.chain.name,
+        retailer_name: entry.chain.name,
+        subtotal: entry.subtotal.toFixed(2),
+        items: entry.items,
+      })),
+      total_price: splitTotal.toFixed(2),
+      savings_amount: savings.toFixed(2),
+      savings_percentage: savingsPct,
       is_complete_match: true,
-      cheaper_than_single_store: true,
+      cheaper_than_single_store: savings > 0,
     },
-    ranked_stores: [
-      {
-        store_id: 'd1b6fc61-ff2b-5935-8d92-9eec487eeaae',
-        store_name: 'Shoprite',
-        branch_code: null,
-        retailer_name: 'Shoprite',
-        total_price: '142.96',
-        is_complete_match: true,
-        items_available_count: count,
-        total_items_count: count,
-        items: [],
-        missing_items: [],
-      },
-      {
-        store_id: '26f7a89e-0e58-56e3-a225-8c7310382985',
-        store_name: 'Checkers',
-        branch_code: null,
-        retailer_name: 'Checkers',
-        total_price: '146.96',
-        is_complete_match: true,
-        items_available_count: count,
-        total_items_count: count,
-        items: [],
-        missing_items: [],
-      },
-      {
-        store_id: 'cd86c9b4-176c-551e-aebc-b91bfdce86c1',
-        store_name: 'Pick n Pay',
-        branch_code: null,
-        retailer_name: 'Pick n Pay',
-        total_price: '149.96',
-        is_complete_match: true,
-        items_available_count: count,
-        total_items_count: count,
-        items: [],
-        missing_items: [],
-      },
-      {
-        store_id: 'c9753b0f-5341-5001-a2dc-3996ff85a7bc',
-        store_name: 'SPAR',
-        branch_code: null,
-        retailer_name: 'SPAR',
-        total_price: '165.96',
-        is_complete_match: true,
-        items_available_count: count,
-        total_items_count: count,
-        items: [],
-        missing_items: [],
-      },
-      {
-        store_id: '30c7639b-d34c-597b-9399-68e3ff9de7a7',
-        store_name: 'Woolworths Food',
-        branch_code: null,
-        retailer_name: 'Woolworths Food',
-        total_price: '168.96',
-        is_complete_match: true,
-        items_available_count: count,
-        total_items_count: count,
-        items: [],
-        missing_items: [],
-      },
-    ],
+    ranked_stores: rankedStores,
   };
 }

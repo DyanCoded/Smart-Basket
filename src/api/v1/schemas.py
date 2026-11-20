@@ -346,6 +346,23 @@ class BasketCalculationRequest(BaseModel):
         min_length=1,
         description="List of grocery products and required quantities",
     )
+    store_ids: Optional[List[uuid.UUID]] = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "Optional list of canonical retailer chain store UUIDs to include "
+            "in comparison and Smart Mode split (defaults to all 5 active chains)."
+        ),
+    )
+    retailer_slugs: Optional[List[str]] = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "Optional list of retailer slugs (e.g. 'shoprite', 'checkers', "
+            "'pick-n-pay', 'spar', 'woolworths-food') to include in comparison "
+            "and Smart Mode split (defaults to all 5 active chains)."
+        ),
+    )
 
 
 class BasketItemDetail(BaseModel):

@@ -7,9 +7,17 @@
  */
 
 import { NativeModules, Platform } from 'react-native';
-import SQLite, { SQLiteDatabase } from 'react-native-sqlite-storage';
+import type { SQLiteDatabase } from 'react-native-sqlite-storage';
 
 import { PantryItemResponse, PantryStatus, PantrySyncMutation } from '@/types/api';
+
+if (typeof globalThis.setImmediate === 'undefined') {
+  (
+    globalThis as unknown as {
+      setImmediate: (fn: () => void) => ReturnType<typeof setTimeout>;
+    }
+  ).setImmediate = (fn: () => void) => setTimeout(fn, 0);
+}
 
 const DB_NAME = 'smartbasket_pantry.db';
 
@@ -74,12 +82,14 @@ export async function initLocalDatabase(): Promise<SQLiteDatabase | null> {
   }
 
   try {
-    if (
-      Platform.OS === 'web' ||
-      !NativeModules?.SQLite ||
-      !SQLite ||
-      typeof SQLite.openDatabase !== 'function'
-    ) {
+    if (Platform.OS === 'web' || !NativeModules?.SQLite) {
+      useInMemoryFallback = true;
+      return null;
+    }
+
+    const sqliteModule = await import('react-native-sqlite-storage');
+    const SQLite = sqliteModule.default ?? sqliteModule;
+    if (!SQLite || typeof SQLite.openDatabase !== 'function') {
       useInMemoryFallback = true;
       return null;
     }

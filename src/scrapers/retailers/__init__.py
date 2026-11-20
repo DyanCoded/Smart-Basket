@@ -12,14 +12,22 @@ from src.scrapers.retailers.shoprite_group import (
     parse_search_html,
     parse_search_json,
 )
+from src.scrapers.retailers.woolworths import (
+    WoolworthsScraper,
+    parse_woolworths_html,
+    parse_woolworths_json,
+)
 
 __all__ = [
     "ShopriteGroupBaseScraper",
     "CheckersScraper",
     "ShopriteScraper",
     "PickNPayScraper",
+    "WoolworthsScraper",
     "parse_search_html",
     "parse_search_json",
     "parse_pnp_html",
     "parse_pnp_json",
+    "parse_woolworths_html",
+    "parse_woolworths_json",
 ]

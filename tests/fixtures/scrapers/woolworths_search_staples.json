@@ -1,0 +1,84 @@
+{
+  "_fixture_note": "PLACEHOLDER_ offline Oracle Endeca / ATG JSON catalog fixture for Woolworths Food (www.woolworths.co.za)",
+  "contents": [
+    {
+      "mainContent": [
+        {
+          "name": "ResultsList",
+          "records": [
+            {
+              "attributes": {
+                "p_sku": ["6001299011011"],
+                "p_ean": ["6001299011011"],
+                "p_displayName": ["Clover Full Cream Fresh Milk 2 L"],
+                "p_brand": ["Clover"],
+                "p_packSize": ["2 L"],
+                "p_category": ["Food/Dairy & Eggs/Milk"],
+                "p_price": ["42.99"],
+                "p_promotion": ["Any 2 for R76.00"],
+                "p_detailPageUrl": ["/prod/Food/Milk-Dairy-Eggs/Clover-Full-Cream-Fresh-Milk-2-L/_/A-6001299011011"]
+              }
+            },
+            {
+              "attributes": {
+                "p_sku": ["6001299011059"],
+                "p_displayName": ["Albany Superior Sliced White Bread 700 g"],
+                "p_brand": ["Albany"],
+                "p_packSize": ["700 g"],
+                "p_category": ["Food/Bakery/Bread"],
+                "p_price": ["R 19.99"],
+                "p_detailPageUrl": ["/prod/Food/Bakery/Albany-White-Bread-700-g/_/A-6001299011059"]
+              }
+            },
+            {
+              "attributes": {
+                "p_sku": ["504111222"],
+                "p_displayName": ["Tastic Long Grain Parboiled White Rice 2 kg"],
+                "p_brand": ["Tastic"],
+                "p_packSize": ["2 kg"],
+                "p_category": ["Food/Pantry/Rice"],
+                "p_price": ["49.99"],
+                "p_promotion": ["WRewards: R44.99"],
+                "p_detailPageUrl": ["/prod/Food/Pantry/Tastic-Rice-2-kg/_/A-504111222"]
+              }
+            },
+            {
+              "attributes": {
+                "p_sku": ["504222333"],
+                "p_displayName": ["Nescafé Instant Coffee Classic Jar 200 g"],
+                "p_brand": ["Nescafé"],
+                "p_packSize": ["200 g"],
+                "p_category": ["Food/Pantry/Coffee"],
+                "p_price": ["109.99"],
+                "p_promotion": ["WRewards Save 20%"],
+                "p_detailPageUrl": ["/prod/Food/Pantry/Nescafe-Classic-200-g/_/A-504222333"]
+              }
+            },
+            {
+              "attributes": {
+                "p_ean": ["6001299011035"],
+                "p_displayName": ["Lurpak Salted Butter 500 g"],
+                "p_brand": ["Lurpak"],
+                "p_packSize": ["500 g"],
+                "p_category": ["Food/Dairy & Eggs/Butter"],
+                "p_listPrice": ["89.99"],
+                "p_salePrice": ["79.99"],
+                "p_detailPageUrl": ["/prod/Food/Dairy/Lurpak-Butter-500-g/_/A-6001299011035"]
+              }
+            },
+            {
+              "attributes": {
+                "p_sku": ["504812345"],
+                "p_displayName": ["Woolworths Organic Free Range Milk 1 L"],
+                "p_packSize": ["1 L"],
+                "p_category": ["Food/Dairy & Eggs/Milk"],
+                "p_price": ["28.99"],
+                "p_detailPageUrl": ["/prod/Food/Dairy/Woolworths-Organic-Milk-1-L/_/A-504812345"]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -9,6 +9,7 @@ fallback).
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Optional
@@ -335,10 +336,13 @@ def normalize_scraped_item(raw: RawScrapedItem) -> NormalizedPriceRecord:
 
 
 def normalize_text_key(text: Optional[str]) -> str:
-    """Normalize text for deterministic brand/name comparison."""
+    """Normalize text for deterministic brand/name comparison (ASCII-folded)."""
     if not text:
         return ""
-    lowered = text.lower()
+    folded = (
+        unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    )
+    lowered = folded.lower()
     without_units = _STRIP_UNIT_TOKENS_RE.sub(" ", lowered)
     return _NON_ALNUM_RE.sub(" ", without_units).strip()
 

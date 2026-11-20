@@ -34,6 +34,7 @@ from src.scrapers.retailers.shoprite_group import (  # noqa: E402
     CheckersScraper,
     ShopriteScraper,
 )
+from src.scrapers.retailers.woolworths import WoolworthsScraper  # noqa: E402
 
 logger = logging.getLogger("smart_basket.scrapers")
 
@@ -46,16 +47,14 @@ CANONICAL_RETAILERS: tuple[str, ...] = (
 )
 
 # Registry of retailer scraper factories.
-# Live adapters registered for Shoprite, Checkers (#20) & Pick n Pay (#21).
-# PLACEHOLDER_: Woolworths Food & SPAR use PlaceholderFixtureScraper until
-# their live adapters (#22-#23) land.
+# Live adapters registered for Shoprite, Checkers (#20), Pick n Pay (#21)
+# & Woolworths Food (#22).
+# PLACEHOLDER_: SPAR uses PlaceholderFixtureScraper until its live adapter (#23) lands.
 SCRAPER_REGISTRY: dict[str, Callable[[], BaseRetailerScraper]] = {
     "shoprite": ShopriteScraper,
     "checkers": CheckersScraper,
     "pick-n-pay": PickNPayScraper,
-    "woolworths-food": lambda: PlaceholderFixtureScraper(
-        retailer_slug="woolworths-food"
-    ),
+    "woolworths-food": WoolworthsScraper,
     "spar": lambda: PlaceholderFixtureScraper(retailer_slug="spar"),
 }
 

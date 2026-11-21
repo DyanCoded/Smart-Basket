@@ -25,6 +25,13 @@ function RootNavigatorShell() {
     <ThemeProvider value={getNavigationTheme(colorScheme)}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="product/[id]"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />

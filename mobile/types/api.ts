@@ -199,7 +199,7 @@ export interface ProductResponse {
   barcode: string | null;
   unit_size: string;
   unit_type: string;
-  category_id: string;
+  category_id: string | null;
 }
 
 export interface ProductListResponse {
@@ -207,6 +207,25 @@ export interface ProductListResponse {
   total: number;
   limit: number;
   offset: number;
+}
+
+export interface StorePriceItem {
+  id: string;
+  store_id: string;
+  store_name: string;
+  branch_code: string | null;
+  retailer_name: string;
+  price: string;
+  is_promotional: boolean;
+  is_in_stock: boolean;
+  updated_at: string;
+}
+
+export interface ProductPricesResponse {
+  product_id: string;
+  product_name: string;
+  prices: StorePriceItem[];
+  total_stores: number;
 }
 
 export type WebSocketEventType = 'CONNECTED' | 'ITEM_UPDATED' | 'ITEM_DELETED';

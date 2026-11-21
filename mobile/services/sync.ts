@@ -19,6 +19,8 @@ import {
   calculateMultiStoreBasket,
   ensureAuthenticatedHousehold,
   fetchHouseholdBasket,
+  fetchProductById,
+  fetchProductPrices,
   postPantryDeltaSync,
 } from '@/services/api';
 import {
@@ -29,6 +31,8 @@ import {
   PantryStatus,
   PantrySyncMutation,
   PantrySyncResponse,
+  ProductResponse,
+  StorePriceItem,
 } from '@/types/api';
 
 export interface NationalRetailerOption {
@@ -427,4 +431,104 @@ function buildOfflineFallbackCalculation(
     },
     ranked_stores: rankedStores,
   };
+}
+
+export interface ProductCrossChainPriceResult {
+  product: ProductResponse | null;
+  productName: string;
+  prices: StorePriceItem[];
+  isLiveBackend: boolean;
+}
+
+const OFFLINE_SEED_PRODUCT_META: Record<string, ProductResponse> = {
+  [SEED_CATALOG_PRODUCTS.MILK_2L.id]: {
+    id: SEED_CATALOG_PRODUCTS.MILK_2L.id,
+    name: SEED_CATALOG_PRODUCTS.MILK_2L.name,
+    brand: 'Clover',
+    barcode: '6001299011011',
+    unit_size: '2.00',
+    unit_type: 'L',
+    category_id: null,
+  },
+  [SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.id]: {
+    id: SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.id,
+    name: SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.name,
+    brand: 'Albany',
+    barcode: '6001299011059',
+    unit_size: '700.00',
+    unit_type: 'g',
+    category_id: null,
+  },
+  [SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.id]: {
+    id: SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.id,
+    name: SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.name,
+    brand: 'Farmer Brown',
+    barcode: '6001299011028',
+    unit_size: '18.00',
+    unit_type: 'unit',
+    category_id: null,
+  },
+};
+
+export async function getProductCrossChainPrices(
+  productId: string,
+  fallbackName?: string
+): Promise<ProductCrossChainPriceResult> {
+  try {
+    const [product, pricesResponse] = await Promise.all([
+      fetchProductById(productId).catch(() => null),
+      fetchProductPrices(productId),
+    ]);
+
+    const sortedPrices = [...pricesResponse.prices].sort((a, b) => {
+      const diff = Number(a.price) - Number(b.price);
+      if (diff !== 0) {
+        return diff;
+      }
+      return a.retailer_name.localeCompare(b.retailer_name);
+    });
+
+    return {
+      product,
+      productName:
+        product?.name ?? pricesResponse.product_name ?? fallbackName ?? 'Product',
+      prices: sortedPrices,
+      isLiveBackend: true,
+    };
+  } catch {
+    const offlinePrices = OFFLINE_STAPLE_PRICES[productId];
+    const offlineProduct = OFFLINE_SEED_PRODUCT_META[productId] ?? null;
+
+    if (!offlinePrices) {
+      return {
+        product: offlineProduct,
+        productName: offlineProduct?.name ?? fallbackName ?? 'Catalog Product',
+        prices: [],
+        isLiveBackend: false,
+      };
+    }
+
+    const nowIso = new Date().toISOString();
+    const mapped: StorePriceItem[] = NATIONAL_RETAILER_CHAINS.map((chain) => {
+      const entry = offlinePrices[chain.slug] ?? { price: 35.0, promo: false };
+      return {
+        id: `offline-${productId}-${chain.slug}`,
+        store_id: chain.store_id,
+        store_name: chain.name,
+        branch_code: null,
+        retailer_name: chain.name,
+        price: entry.price.toFixed(2),
+        is_promotional: entry.promo,
+        is_in_stock: true,
+        updated_at: nowIso,
+      };
+    }).sort((a, b) => Number(a.price) - Number(b.price));
+
+    return {
+      product: offlineProduct,
+      productName: offlineProduct?.name ?? fallbackName ?? 'Catalog Staple',
+      prices: mapped,
+      isLiveBackend: false,
+    };
+  }
 }

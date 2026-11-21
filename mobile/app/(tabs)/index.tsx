@@ -10,7 +10,7 @@
  *   `POST /api/v1/baskets/calculate` and opening the Basket tab.
  */
 
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -425,8 +425,26 @@ export default function PantryScreen() {
           <IconSymbol name="checkmark" size={14} color={colors.primary} />
         </Pressable>
 
-        {/* Item title + status dot + aisle metadata */}
-        <View style={styles.itemInfo}>
+        {/* Item title + status dot + aisle metadata (tap catalog item for price sheet) */}
+        <Pressable
+          disabled={!item.product_id}
+          accessibilityRole={item.product_id ? 'button' : undefined}
+          accessibilityLabel={
+            item.product_id
+              ? `Compare cross-chain prices for ${getItemTitle(item)}`
+              : undefined
+          }
+          onPress={() => {
+            if (!item.product_id) {
+              return;
+            }
+            const href = `/product/${encodeURIComponent(item.product_id)}?name=${encodeURIComponent(getItemTitle(item))}`;
+            router.push(href as Href);
+          }}
+          style={({ pressed }) => [
+            styles.itemInfo,
+            { opacity: item.product_id && pressed ? 0.72 : 1 },
+          ]}>
           <View style={styles.itemTitleLine}>
             <View style={[styles.statusDot, { backgroundColor: dotColor }]} />
             <Text
@@ -434,12 +452,20 @@ export default function PantryScreen() {
               style={[Typography.bodySemiBold, { color: colors.text, flex: 1 }]}>
               {getItemTitle(item)}
             </Text>
+            {item.product_id ? (
+              <IconSymbol
+                name="chevron.right"
+                size={15}
+                color={colors.textMuted}
+              />
+            ) : null}
           </View>
           <Text style={[Typography.caption, { color: colors.textMuted }]}>
             {showAisleSubtitle ? `${inferAisleLabel(item)} · ` : ''}
             {isFinished ? 'Out of stock' : `${item.quantity} ${item.unit_type} left`}
+            {item.product_id ? ' · Tap for prices' : ''}
           </Text>
-        </View>
+        </Pressable>
 
         {/* Quick toggle between Low <-> Finished */}
         <Pressable

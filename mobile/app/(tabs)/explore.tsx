@@ -14,7 +14,7 @@
  *   pricing only; zero branch names or stock availability text).
  */
 
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -376,7 +376,18 @@ export default function SmartBasketScreen() {
                   },
                 ]}>
                 {cheapestSingle.items.map((item) => (
-                  <View key={item.product_id} style={styles.lineItemRow}>
+                  <Pressable
+                    key={item.product_id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Compare cross-chain prices for ${item.product_name}`}
+                    onPress={() => {
+                      const href = `/product/${encodeURIComponent(item.product_id)}?name=${encodeURIComponent(item.product_name)}`;
+                      router.push(href as Href);
+                    }}
+                    style={({ pressed }) => [
+                      styles.lineItemRow,
+                      { opacity: pressed ? 0.72 : 1 },
+                    ]}>
                     <View style={styles.lineItemInfo}>
                       <Text
                         numberOfLines={1}
@@ -385,7 +396,7 @@ export default function SmartBasketScreen() {
                       </Text>
                       <Text
                         style={[Typography.caption, { color: colors.textMuted }]}>
-                        Qty {item.quantity} × R {item.unit_price}
+                        Qty {item.quantity} × R {item.unit_price} · Tap to compare
                       </Text>
                     </View>
                     <View style={styles.lineItemPriceGroup}>
@@ -408,8 +419,13 @@ export default function SmartBasketScreen() {
                         style={[Typography.bodySemiBold, { color: colors.text }]}>
                         R {item.subtotal}
                       </Text>
+                      <IconSymbol
+                        name="chevron.right"
+                        size={15}
+                        color={colors.textMuted}
+                      />
                     </View>
-                  </View>
+                  </Pressable>
                 ))}
               </View>
 
@@ -524,9 +540,18 @@ export default function SmartBasketScreen() {
                         </Text>
                       </View>
                       {alloc.items.map((item) => (
-                        <View
+                        <Pressable
                           key={`${alloc.store_id}-${item.product_id}`}
-                          style={styles.splitItemRow}>
+                          accessibilityRole="button"
+                          accessibilityLabel={`Compare cross-chain prices for ${item.product_name}`}
+                          onPress={() => {
+                            const href = `/product/${encodeURIComponent(item.product_id)}?name=${encodeURIComponent(item.product_name)}`;
+                            router.push(href as Href);
+                          }}
+                          style={({ pressed }) => [
+                            styles.splitItemRow,
+                            { opacity: pressed ? 0.72 : 1 },
+                          ]}>
                           <Text
                             numberOfLines={1}
                             style={[
@@ -558,8 +583,13 @@ export default function SmartBasketScreen() {
                               ]}>
                               R {item.subtotal}
                             </Text>
+                            <IconSymbol
+                              name="chevron.right"
+                              size={14}
+                              color={colors.textMuted}
+                            />
                           </View>
-                        </View>
+                        </Pressable>
                       ))}
                     </View>
                   ))}

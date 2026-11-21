@@ -19,6 +19,8 @@ import {
   PantrySyncRequest,
   PantrySyncResponse,
   ProductListResponse,
+  ProductPricesResponse,
+  ProductResponse,
   UserProfileResponse,
 } from '@/types/api';
 
@@ -228,6 +230,20 @@ export async function searchCatalogProducts(
 ): Promise<ProductListResponse> {
   const qs = `?q=${encodeURIComponent(query)}&limit=${limit}`;
   return apiRequest<ProductListResponse>(`/products${qs}`);
+}
+
+export async function fetchProductById(
+  productId: string
+): Promise<ProductResponse> {
+  return apiRequest<ProductResponse>(`/products/${encodeURIComponent(productId)}`);
+}
+
+export async function fetchProductPrices(
+  productId: string
+): Promise<ProductPricesResponse> {
+  return apiRequest<ProductPricesResponse>(
+    `/products/${encodeURIComponent(productId)}/prices`
+  );
 }
 
 export async function calculateMultiStoreBasket(

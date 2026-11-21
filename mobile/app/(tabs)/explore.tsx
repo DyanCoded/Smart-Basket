@@ -34,6 +34,7 @@ import {
   Spacing,
   Typography,
 } from '@/constants/Theme';
+import { useAuth } from '@/context/AuthContext';
 import { useSyncStatus } from '@/context/SyncStatusContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { getActiveHomeId } from '@/services/api';
@@ -63,6 +64,7 @@ function formatLastUpdated(iso: string | null): string {
 export default function SmartBasketScreen() {
   const router = useRouter();
   const { colors, colorScheme } = useAppTheme();
+  const { activeHomeId: authHomeId } = useAuth();
   const {
     latestComparison,
     lastCalculatedAt,
@@ -73,7 +75,7 @@ export default function SmartBasketScreen() {
     setSyncState,
   } = useSyncStatus();
 
-  const homeId = getActiveHomeId() ?? DEFAULT_HOME_ID;
+  const homeId = authHomeId ?? getActiveHomeId() ?? DEFAULT_HOME_ID;
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [smartModeEnabled, setSmartModeEnabled] = useState<boolean>(true);
 

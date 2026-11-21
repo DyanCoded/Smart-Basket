@@ -17,7 +17,8 @@ export interface MembershipSummary {
   home_id: string;
   home_name: string;
   role: HouseholdRole;
-  created_at: string;
+  joined_at?: string;
+  created_at?: string;
 }
 
 export interface UserProfileResponse {
@@ -32,6 +33,8 @@ export interface HomeResponse {
   id: string;
   name: string;
   created_at: string;
+  role?: HouseholdRole;
+  member_count?: number;
 }
 
 export interface HomeMemberDetail {
@@ -40,11 +43,19 @@ export interface HomeMemberDetail {
   username: string;
   email: string;
   role: HouseholdRole;
-  created_at: string;
+  joined_at?: string;
+  created_at?: string;
 }
 
 export interface HomeDetailResponse extends HomeResponse {
   members: HomeMemberDetail[];
+}
+
+export interface AddHomeMemberRequest {
+  username?: string;
+  email?: string;
+  user_id?: string;
+  role: HouseholdRole;
 }
 
 export interface PantryItemResponse {

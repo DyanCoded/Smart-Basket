@@ -7,10 +7,12 @@
 import Constants from 'expo-constants';
 
 import {
+  AddHomeMemberRequest,
   AuthTokenResponse,
   BasketCalculationRequest,
   BasketCalculationResponse,
   HomeDetailResponse,
+  HomeMemberDetail,
   HomeResponse,
   HouseholdBasketResponse,
   PantryItemCreateRequest,
@@ -96,7 +98,16 @@ async function apiRequest<T>(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`API ${response.status}: ${errorText || response.statusText}`);
+    let detailMessage = errorText || response.statusText;
+    try {
+      const parsed = JSON.parse(errorText) as { detail?: string };
+      if (parsed && typeof parsed.detail === 'string') {
+        detailMessage = parsed.detail;
+      }
+    } catch {
+      // Keep raw error text when response is not JSON
+    }
+    throw new Error(detailMessage || `Request failed (${response.status})`);
   }
 
   return (await response.json()) as T;
@@ -140,6 +151,37 @@ export async function createHome(name: string): Promise<HomeDetailResponse> {
   });
   setActiveHomeId(home.id);
   return home;
+}
+
+export async function fetchHomeDetail(
+  homeId: string
+): Promise<HomeDetailResponse> {
+  return apiRequest<HomeDetailResponse>(`/homes/${encodeURIComponent(homeId)}`);
+}
+
+export async function addHomeMember(
+  homeId: string,
+  payload: AddHomeMemberRequest
+): Promise<HomeMemberDetail> {
+  return apiRequest<HomeMemberDetail>(
+    `/homes/${encodeURIComponent(homeId)}/members`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export async function removeHomeMember(
+  homeId: string,
+  userId: string
+): Promise<{ detail: string }> {
+  return apiRequest<{ detail: string }>(
+    `/homes/${encodeURIComponent(homeId)}/members/${encodeURIComponent(userId)}`,
+    {
+      method: 'DELETE',
+    }
+  );
 }
 
 export async function ensureAuthenticatedHousehold(

@@ -29,6 +29,7 @@ import {
   Spacing,
   Typography,
 } from '@/constants/Theme';
+import { useAuth } from '@/context/AuthContext';
 import { useSyncStatus } from '@/context/SyncStatusContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import {
@@ -140,9 +141,10 @@ const INITIAL_PANTRY_FIXTURES: PantryItemResponse[] = [
 export default function PantryScreen() {
   const router = useRouter();
   const { colors, colorScheme } = useAppTheme();
+  const { activeHomeId: authHomeId } = useAuth();
   const { setSyncState, setLatestComparison, selectedRetailerSlugs } =
     useSyncStatus();
-  const homeId = getActiveHomeId() ?? DEFAULT_HOME_ID;
+  const homeId = authHomeId ?? getActiveHomeId() ?? DEFAULT_HOME_ID;
 
   const [items, setItems] = useState<PantryItemResponse[]>([]);
   const [viewMode, setViewMode] = useState<PantryViewMode>('status');

@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { getNavigationTheme } from '@/constants/Theme';
+import { AuthProvider } from '@/context/AuthContext';
 import { SyncStatusProvider } from '@/context/SyncStatusContext';
 import { AppThemeProvider, useAppTheme } from '@/context/ThemeContext';
 
@@ -25,6 +26,13 @@ function RootNavigatorShell() {
     <ThemeProvider value={getNavigationTheme(colorScheme)}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="(auth)"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
         <Stack.Screen
           name="product/[id]"
           options={{
@@ -52,9 +60,11 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AppThemeProvider>
-        <SyncStatusProvider>
-          <RootNavigatorShell />
-        </SyncStatusProvider>
+        <AuthProvider>
+          <SyncStatusProvider>
+            <RootNavigatorShell />
+          </SyncStatusProvider>
+        </AuthProvider>
       </AppThemeProvider>
     </SafeAreaProvider>
   );

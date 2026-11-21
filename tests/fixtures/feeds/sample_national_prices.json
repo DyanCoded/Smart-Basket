@@ -1,0 +1,62 @@
+{
+  "_fixture_note": "PLACEHOLDER_ sample JSON price feed snapshot for --source-dir end-to-end ingestion & basket recalculation tests",
+  "items": [
+    {
+      "retailer_slug": "checkers",
+      "raw_name": "Clover Full Cream Fresh Milk 2 Litre",
+      "raw_price": "R 36.99",
+      "raw_promo_price": "R 29.99",
+      "brand": "Clover",
+      "barcode": "6001299011011",
+      "category_slug": "dairy-eggs",
+      "raw_unit": "2000ml",
+      "is_promotional": true,
+      "source_url": "PLACEHOLDER_feed://sample_national_prices.json#checkers-milk"
+    },
+    {
+      "retailer_slug": "checkers",
+      "raw_name": "Albany Superior Sliced White Bread 700g",
+      "raw_price": "R17.49 / ea",
+      "brand": "Albany",
+      "barcode": "6001299011059",
+      "category_slug": "bakery",
+      "raw_unit": "700g",
+      "is_promotional": false,
+      "source_url": "PLACEHOLDER_feed://sample_national_prices.json#checkers-bread"
+    },
+    {
+      "retailer_slug": "shoprite",
+      "raw_name": "Clover Full Cream Fresh Milk 2L",
+      "raw_price": "R 33.49",
+      "brand": "Clover",
+      "barcode": "6001299011011",
+      "category_slug": "dairy-eggs",
+      "raw_unit": "2L",
+      "is_promotional": false,
+      "source_url": "PLACEHOLDER_feed://sample_national_prices.json#shoprite-milk"
+    },
+    {
+      "retailer_slug": "shoprite",
+      "raw_name": "Albany Superior Sliced White Bread 700g",
+      "raw_price": "R 14.99",
+      "brand": "Albany",
+      "barcode": "6001299011059",
+      "category_slug": "bakery",
+      "raw_unit": "700g",
+      "is_promotional": true,
+      "source_url": "PLACEHOLDER_feed://sample_national_prices.json#shoprite-bread"
+    },
+    {
+      "retailer_slug": "pick-n-pay",
+      "raw_name": "Farmer Brown Large Eggs 18pk",
+      "raw_price": "R 62.99",
+      "raw_promo_price": "2 FOR R104.98",
+      "brand": "Farmer Brown",
+      "barcode": "6001299011028",
+      "category_slug": "dairy-eggs",
+      "raw_unit": "18 pack",
+      "is_promotional": true,
+      "source_url": "PLACEHOLDER_feed://sample_national_prices.json#pnp-eggs"
+    }
+  ]
+}

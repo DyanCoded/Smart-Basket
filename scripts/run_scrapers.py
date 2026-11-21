@@ -4,6 +4,7 @@ Usage:
     python scripts/run_scrapers.py --retailer all --dry-run
     python scripts/run_scrapers.py --retailer checkers --queries "milk,bread,eggs"
     python scripts/run_scrapers.py --retailer all --force-history
+    python scripts/run_scrapers.py --retailer all --source-dir tests/fixtures/feeds
     python scripts/run_scrapers.py --retailer all --summary-json scraper_summary.json
 """
 
@@ -27,6 +28,10 @@ from sqlalchemy.orm import Session  # noqa: E402
 
 from src.core.database import SessionLocal  # noqa: E402
 from src.scrapers.base import BaseRetailerScraper  # noqa: E402
+from src.scrapers.feed_loader import (  # noqa: E402
+    FeedSnapshotScraper,
+    load_feed_items_from_dir,
+)
 from src.scrapers.models import NormalizedPriceRecord, PublishSummary  # noqa: E402
 from src.scrapers.normalizer import normalize_scraped_item  # noqa: E402
 from src.scrapers.publisher import CatalogPublisher  # noqa: E402
@@ -57,6 +62,22 @@ SCRAPER_REGISTRY: dict[str, Callable[[], BaseRetailerScraper]] = {
     "woolworths-food": WoolworthsScraper,
     "spar": SparScraper,
 }
+
+
+def build_feed_registry(
+    source_dir: Path,
+    retailer_slugs: list[str],
+) -> dict[str, Callable[[], BaseRetailerScraper]]:
+    """Build a scraper registry backed by structured JSON/CSV feed snapshots."""
+    grouped = load_feed_items_from_dir(source_dir, retailer_slugs=retailer_slugs)
+    return {
+        slug: (
+            lambda s=slug, items=grouped.get(slug, []): FeedSnapshotScraper(
+                retailer_slug=s, items=items
+            )
+        )
+        for slug in retailer_slugs
+    }
 
 
 async def scrape_and_normalize_retailer(
@@ -97,16 +118,23 @@ async def run_pipeline(
     force_history: bool = False,
     session: Optional[Session] = None,
     scraper_registry: Optional[dict[str, Callable[[], BaseRetailerScraper]]] = None,
+    source_dir: Optional[Path] = None,
 ) -> list[PublishSummary]:
     """Execute scrape -> normalize -> publish across selected national chains.
 
     Isolates per-retailer exceptions: if one retailer adapter fails, logs a
     structured warning, rolls back any pending DB state for that retailer,
     records a failed PublishSummary, and continues processing the rest.
+    Retailers finishing with 0 processed items are explicitly marked `partial`
+    so blocked or empty runs are never silently reported as healthy.
     """
     owns_session = session is None
     db_session = session or SessionLocal()
     summaries: list[PublishSummary] = []
+
+    active_registry = scraper_registry
+    if active_registry is None and source_dir is not None:
+        active_registry = build_feed_registry(source_dir, retailer_slugs)
 
     try:
         publisher = CatalogPublisher(db_session)
@@ -116,7 +144,7 @@ async def run_pipeline(
                 records = await scrape_and_normalize_retailer(
                     slug,
                     query_terms,
-                    scraper_registry=scraper_registry,
+                    scraper_registry=active_registry,
                 )
                 summary = publisher.publish_records(
                     records,
@@ -127,7 +155,17 @@ async def run_pipeline(
                 )
                 summary.duration_seconds = round(time.monotonic() - started, 3)
                 summary.synced_at = datetime.now(timezone.utc)
-                summary.status = "ok"
+                if summary.records_processed == 0:
+                    summary.status = "partial"
+                    summary.error = "0 items extracted (blocked, empty, or no matches)"
+                    logger.warning(
+                        "Retailer scraper returned 0 items | retailer=%s "
+                        "duration=%.3fs",
+                        slug,
+                        summary.duration_seconds,
+                    )
+                else:
+                    summary.status = "ok"
                 summaries.append(summary)
             except Exception as exc:  # noqa: BLE001
                 elapsed = round(time.monotonic() - started, 3)
@@ -166,11 +204,12 @@ def build_telemetry_report(summaries: list[PublishSummary]) -> dict[str, Any]:
     """Aggregate per-retailer summaries into a structured JSON telemetry payload."""
     total = len(summaries)
     failed = sum(1 for s in summaries if s.status == "failed")
-    succeeded = total - failed
+    partial = sum(1 for s in summaries if s.status == "partial")
+    succeeded = sum(1 for s in summaries if s.status == "ok")
 
     if total > 0 and failed == total:
         overall_status = "failed"
-    elif failed > 0:
+    elif failed > 0 or partial > 0:
         overall_status = "degraded"
     else:
         overall_status = "ok"
@@ -179,6 +218,7 @@ def build_telemetry_report(summaries: list[PublishSummary]) -> dict[str, Any]:
         "overall_status": overall_status,
         "total_retailers": total,
         "succeeded": succeeded,
+        "partial": partial,
         "failed": failed,
         "completed_at": datetime.now(timezone.utc).isoformat(),
         "retailers": [s.model_dump(mode="json") for s in summaries],
@@ -197,8 +237,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--queries",
-        default="milk,bread,eggs",
-        help="Comma-separated product search terms (default: 'milk,bread,eggs').",
+        default=None,
+        help=(
+            "Comma-separated search terms (default: 'milk,bread,eggs' for live "
+            "scrapers; all items for --source-dir)."
+        ),
+    )
+    parser.add_argument(
+        "--source-dir",
+        default=None,
+        help=(
+            "Directory containing structured JSON/CSV retailer price snapshot "
+            "files to ingest through normalizer & publisher."
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -218,7 +269,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--strict",
         action="store_true",
-        help="Exit non-zero if any retailer fails (default: fail only if all fail).",
+        help="Exit non-zero if any retailer fails or returns 0 items.",
     )
     return parser
 
@@ -239,10 +290,18 @@ def main(
     target_retailers = (
         list(CANONICAL_RETAILERS) if args.retailer == "all" else [args.retailer]
     )
-    query_terms = [q.strip() for q in args.queries.split(",") if q.strip()]
+    source_path = Path(args.source_dir) if args.source_dir else None
+
+    if args.queries is not None:
+        query_terms = [q.strip() for q in args.queries.split(",") if q.strip()]
+    elif source_path is not None:
+        query_terms = []
+    else:
+        query_terms = ["milk", "bread", "eggs"]
 
     mode_label = "DRY-RUN" if args.dry_run else "LIVE PUBLISH"
-    print(f"SmartBasket Scraper Pipeline ({mode_label})")
+    source_label = f"FEED ({source_path})" if source_path else "LIVE HTTP"
+    print(f"SmartBasket Scraper Pipeline ({mode_label} | {source_label})")
     print(f"Retailers : {', '.join(target_retailers)}")
     print(f"Queries   : {', '.join(query_terms) or '(all)'}")
     print("-" * 78)
@@ -255,6 +314,7 @@ def main(
             force_history=args.force_history,
             session=session,
             scraper_registry=scraper_registry,
+            source_dir=source_path,
         )
     )
 
@@ -264,6 +324,12 @@ def main(
                 f"  {summary.retailer_slug:<16} | STATUS=FAILED "
                 f"duration={summary.duration_seconds:.2f}s "
                 f"error={summary.error}"
+            )
+        elif summary.status == "partial":
+            print(
+                f"  {summary.retailer_slug:<16} | STATUS=PARTIAL (0 items) "
+                f"duration={summary.duration_seconds:.2f}s "
+                f"detail={summary.error}"
             )
         else:
             print(
@@ -294,10 +360,11 @@ def main(
         return 1
     if overall == "degraded":
         failed_slugs = [s.retailer_slug for s in summaries if s.status == "failed"]
+        partial_slugs = [s.retailer_slug for s in summaries if s.status == "partial"]
         print(
             f"Pipeline run PARTIAL SUCCESS (DEGRADED): "
-            f"{report['succeeded']}/{report['total_retailers']} succeeded; "
-            f"failed={failed_slugs}"
+            f"{report['succeeded']}/{report['total_retailers']} ok; "
+            f"partial(0 items)={partial_slugs}; failed={failed_slugs}"
         )
         return 1 if args.strict else 0
 

@@ -1,0 +1,5 @@
+retailer_slug,raw_name,raw_price,raw_promo_price,brand,barcode,category_slug,raw_unit,is_promotional,source_url
+woolworths-food,Clover Full Cream Fresh Milk 2 L,R 41.99,R 37.99,Clover,6001299011011,dairy-eggs,2 L,true,PLACEHOLDER_feed://sample_national_prices.csv#ww-milk
+woolworths-food,Albany Superior Sliced White Bread 700 g,R 19.49,,Albany,6001299011059,bakery,700 g,false,PLACEHOLDER_feed://sample_national_prices.csv#ww-bread
+spar,Clover Full Cream Fresh Milk 2L,R 39.99,R 34.49,Clover,6001299011011,dairy-eggs,2000ml,true,PLACEHOLDER_feed://sample_national_prices.csv#spar-milk
+spar,Farmer Brown Large Eggs 18pk,R 64.99,2 FOR R111.98,Farmer Brown,6001299011028,dairy-eggs,18's,true,PLACEHOLDER_feed://sample_national_prices.csv#spar-eggs

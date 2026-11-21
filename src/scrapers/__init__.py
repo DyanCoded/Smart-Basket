@@ -1,6 +1,11 @@
 """Phase 3 live data scraper, tidy-data normalizer, and catalog publisher package."""
 
 from src.scrapers.base import BaseRetailerScraper, PlaceholderFixtureScraper
+from src.scrapers.feed_loader import (
+    FeedSnapshotScraper,
+    load_feed_items_from_dir,
+    load_feed_items_from_file,
+)
 from src.scrapers.models import (
     CanonicalRetailerSlug,
     CanonicalUnitType,
@@ -34,6 +39,9 @@ from src.scrapers.retailers import (
 __all__ = [
     "BaseRetailerScraper",
     "PlaceholderFixtureScraper",
+    "FeedSnapshotScraper",
+    "load_feed_items_from_file",
+    "load_feed_items_from_dir",
     "ShopriteGroupBaseScraper",
     "CheckersScraper",
     "ShopriteScraper",

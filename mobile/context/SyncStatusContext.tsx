@@ -13,6 +13,7 @@ import React, {
 } from 'react';
 
 import { getApiBaseUrl } from '@/services/api';
+import { type HouseholdBasketComparisonResult } from '@/services/sync';
 
 export type SyncState = 'synced' | 'syncing' | 'offline';
 
@@ -22,6 +23,8 @@ export interface SyncStatusContextValue {
   lastSyncedAt: string | null;
   catalogLastSyncAt: string | null;
   trackedPricesCount: number | null;
+  latestComparison: HouseholdBasketComparisonResult | null;
+  setLatestComparison: (result: HouseholdBasketComparisonResult | null) => void;
   setSyncState: (update: {
     status?: SyncState;
     pendingCount?: number;
@@ -38,6 +41,8 @@ export function SyncStatusProvider({ children }: { children: React.ReactNode }) 
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [catalogLastSyncAt, setCatalogLastSyncAt] = useState<string | null>(null);
   const [trackedPricesCount, setTrackedPricesCount] = useState<number | null>(null);
+  const [latestComparison, setLatestComparison] =
+    useState<HouseholdBasketComparisonResult | null>(null);
 
   const setSyncState = useCallback(
     (update: {
@@ -108,6 +113,8 @@ export function SyncStatusProvider({ children }: { children: React.ReactNode }) 
       lastSyncedAt,
       catalogLastSyncAt,
       trackedPricesCount,
+      latestComparison,
+      setLatestComparison,
       setSyncState,
       probeBackendHealth,
     }),
@@ -117,6 +124,7 @@ export function SyncStatusProvider({ children }: { children: React.ReactNode }) 
       lastSyncedAt,
       catalogLastSyncAt,
       trackedPricesCount,
+      latestComparison,
       setSyncState,
       probeBackendHealth,
     ]
@@ -138,6 +146,8 @@ export function useSyncStatus(): SyncStatusContextValue {
       lastSyncedAt: null,
       catalogLastSyncAt: null,
       trackedPricesCount: null,
+      latestComparison: null,
+      setLatestComparison: () => undefined,
       setSyncState: () => undefined,
       probeBackendHealth: async () => false,
     };

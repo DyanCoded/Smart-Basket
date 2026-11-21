@@ -17,10 +17,11 @@ const ALL_RETAILER_SLUGS = NATIONAL_RETAILER_CHAINS.map((c) => c.slug);
 
 export default function SmartBasketScreen() {
   const { colors } = useAppTheme();
-  const { setSyncState } = useSyncStatus();
+  const { latestComparison, setLatestComparison, setSyncState } =
+    useSyncStatus();
   const homeId = getActiveHomeId() ?? DEFAULT_HOME_ID;
   const [comparison, setComparison] =
-    useState<HouseholdBasketComparisonResult | null>(null);
+    useState<HouseholdBasketComparisonResult | null>(latestComparison);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [smartModeEnabled, setSmartModeEnabled] = useState<boolean>(true);
   const [selectedSlugs, setSelectedSlugs] =
@@ -31,13 +32,20 @@ export default function SmartBasketScreen() {
       setIsLoading(true);
       const result = await syncAndCalculateSmartBasket(homeId, slugsToEvaluate);
       setComparison(result);
+      setLatestComparison(result);
       setIsLoading(false);
       setSyncState({
         status: result.isLiveBackend ? 'synced' : 'offline',
       });
     },
-    [homeId, setSyncState]
+    [homeId, setLatestComparison, setSyncState]
   );
+
+  useEffect(() => {
+    if (latestComparison) {
+      setComparison(latestComparison);
+    }
+  }, [latestComparison]);
 
   useEffect(() => {
     void refreshComparison(selectedSlugs);

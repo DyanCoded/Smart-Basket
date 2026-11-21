@@ -140,7 +140,8 @@ const INITIAL_PANTRY_FIXTURES: PantryItemResponse[] = [
 export default function PantryScreen() {
   const router = useRouter();
   const { colors, colorScheme } = useAppTheme();
-  const { setSyncState, setLatestComparison } = useSyncStatus();
+  const { setSyncState, setLatestComparison, selectedRetailerSlugs } =
+    useSyncStatus();
   const homeId = getActiveHomeId() ?? DEFAULT_HOME_ID;
 
   const [items, setItems] = useState<PantryItemResponse[]>([]);
@@ -380,8 +381,11 @@ export default function PantryScreen() {
     setIsComparing(true);
     setSyncState({ status: 'syncing' });
     try {
-      const comparisonResult = await syncAndCalculateSmartBasket(homeId);
-      setLatestComparison(comparisonResult);
+      const comparisonResult = await syncAndCalculateSmartBasket(
+        homeId,
+        selectedRetailerSlugs
+      );
+      setLatestComparison(comparisonResult, selectedRetailerSlugs);
       setSyncState({
         status: comparisonResult.isLiveBackend ? 'synced' : 'offline',
       });

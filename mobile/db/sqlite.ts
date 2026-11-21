@@ -412,3 +412,13 @@ export async function setUserPreference(key: string, value: string): Promise<voi
     [key, value]
   );
 }
+
+const CACHED_BASKET_KEY = 'cached_basket_comparison';
+
+export async function getCachedBasketComparisonRaw(): Promise<string | null> {
+  return getUserPreference(CACHED_BASKET_KEY);
+}
+
+export async function setCachedBasketComparisonRaw(jsonPayload: string): Promise<void> {
+  await setUserPreference(CACHED_BASKET_KEY, jsonPayload);
+}

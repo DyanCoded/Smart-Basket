@@ -1,6 +1,8 @@
 /**
- * Global sync status context powering the subtle top Sync Status Pill
- * (Synced vs. Syncing vs. Offline) across all 3 navigation tabs.
+ * Global sync status & cached basket comparison context powering:
+ * - Subtle top Sync Status Pill (Synced vs. Syncing vs. Offline) across all 3 tabs
+ * - Data-saving cached Basket comparison state persisted in SQLite / localStorage
+ *   so switching to the Basket tab renders immediately without redundant API calls.
  */
 
 import React, {
@@ -12,10 +14,25 @@ import React, {
   useState,
 } from 'react';
 
+import {
+  getCachedBasketComparisonRaw,
+  setCachedBasketComparisonRaw,
+} from '@/db/sqlite';
 import { getApiBaseUrl } from '@/services/api';
-import { type HouseholdBasketComparisonResult } from '@/services/sync';
+import {
+  type HouseholdBasketComparisonResult,
+  NATIONAL_RETAILER_CHAINS,
+} from '@/services/sync';
 
 export type SyncState = 'synced' | 'syncing' | 'offline';
+
+export interface CachedBasketSnapshot {
+  comparison: HouseholdBasketComparisonResult;
+  selectedSlugs: string[];
+  calculatedAt: string;
+}
+
+const DEFAULT_SELECTED_SLUGS = NATIONAL_RETAILER_CHAINS.map((c) => c.slug);
 
 export interface SyncStatusContextValue {
   status: SyncState;
@@ -24,7 +41,14 @@ export interface SyncStatusContextValue {
   catalogLastSyncAt: string | null;
   trackedPricesCount: number | null;
   latestComparison: HouseholdBasketComparisonResult | null;
-  setLatestComparison: (result: HouseholdBasketComparisonResult | null) => void;
+  lastCalculatedAt: string | null;
+  selectedRetailerSlugs: string[];
+  isCacheHydrated: boolean;
+  setLatestComparison: (
+    result: HouseholdBasketComparisonResult | null,
+    selectedSlugs?: string[]
+  ) => void;
+  setSelectedRetailerSlugs: (slugs: string[]) => void;
   setSyncState: (update: {
     status?: SyncState;
     pendingCount?: number;
@@ -41,8 +65,78 @@ export function SyncStatusProvider({ children }: { children: React.ReactNode }) 
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [catalogLastSyncAt, setCatalogLastSyncAt] = useState<string | null>(null);
   const [trackedPricesCount, setTrackedPricesCount] = useState<number | null>(null);
-  const [latestComparison, setLatestComparison] =
+  const [latestComparison, setLatestComparisonState] =
     useState<HouseholdBasketComparisonResult | null>(null);
+  const [lastCalculatedAt, setLastCalculatedAt] = useState<string | null>(null);
+  const [selectedRetailerSlugs, setSelectedRetailerSlugs] = useState<string[]>(
+    DEFAULT_SELECTED_SLUGS
+  );
+  const [isCacheHydrated, setIsCacheHydrated] = useState<boolean>(false);
+
+  // Hydrate persisted cached basket comparison on mount (zero API calls)
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const raw = await getCachedBasketComparisonRaw();
+        if (mounted && raw) {
+          const parsed = JSON.parse(raw) as Partial<CachedBasketSnapshot>;
+          if (parsed.comparison && parsed.calculatedAt) {
+            setLatestComparisonState(parsed.comparison);
+            setLastCalculatedAt(parsed.calculatedAt);
+            if (
+              Array.isArray(parsed.selectedSlugs) &&
+              parsed.selectedSlugs.length > 0
+            ) {
+              setSelectedRetailerSlugs(parsed.selectedSlugs);
+            }
+          }
+        }
+      } catch {
+        // Ignore malformed cache entries
+      } finally {
+        if (mounted) {
+          setIsCacheHydrated(true);
+        }
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const setLatestComparison = useCallback(
+    (
+      result: HouseholdBasketComparisonResult | null,
+      slugsOverride?: string[]
+    ) => {
+      setLatestComparisonState(result);
+      if (slugsOverride && slugsOverride.length > 0) {
+        setSelectedRetailerSlugs(slugsOverride);
+      }
+
+      if (!result) {
+        setLastCalculatedAt(null);
+        return;
+      }
+
+      const calculatedAt = new Date().toISOString();
+      setLastCalculatedAt(calculatedAt);
+      const slugsToSave =
+        slugsOverride && slugsOverride.length > 0
+          ? slugsOverride
+          : selectedRetailerSlugs;
+
+      const snapshot: CachedBasketSnapshot = {
+        comparison: result,
+        selectedSlugs: slugsToSave,
+        calculatedAt,
+      };
+      void setCachedBasketComparisonRaw(JSON.stringify(snapshot));
+    },
+    [selectedRetailerSlugs]
+  );
 
   const setSyncState = useCallback(
     (update: {
@@ -114,7 +208,11 @@ export function SyncStatusProvider({ children }: { children: React.ReactNode }) 
       catalogLastSyncAt,
       trackedPricesCount,
       latestComparison,
+      lastCalculatedAt,
+      selectedRetailerSlugs,
+      isCacheHydrated,
       setLatestComparison,
+      setSelectedRetailerSlugs,
       setSyncState,
       probeBackendHealth,
     }),
@@ -125,6 +223,10 @@ export function SyncStatusProvider({ children }: { children: React.ReactNode }) 
       catalogLastSyncAt,
       trackedPricesCount,
       latestComparison,
+      lastCalculatedAt,
+      selectedRetailerSlugs,
+      isCacheHydrated,
+      setLatestComparison,
       setSyncState,
       probeBackendHealth,
     ]
@@ -147,7 +249,11 @@ export function useSyncStatus(): SyncStatusContextValue {
       catalogLastSyncAt: null,
       trackedPricesCount: null,
       latestComparison: null,
+      lastCalculatedAt: null,
+      selectedRetailerSlugs: DEFAULT_SELECTED_SLUGS,
+      isCacheHydrated: true,
       setLatestComparison: () => undefined,
+      setSelectedRetailerSlugs: () => undefined,
       setSyncState: () => undefined,
       probeBackendHealth: async () => false,
     };

@@ -1,499 +1,914 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+/**
+ * SmartBasket Optimizer Tab — Cached Comparison State, Included Retailers
+ * Checklist & Smart Mode Split Cards (#27).
+ *
+ * - Data-Saving Cached State: displays the persisted last calculation
+ *   immediately on tab switch with a "Last updated …" timestamp, making zero
+ *   redundant API calls until the user taps Compare Prices from Pantry,
+ *   toggles a retailer filter pill, or pulls to refresh.
+ * - Included Retailers Checklist: multi-select pills for all 5 South African
+ *   national chains (Shoprite, Checkers, Pick n Pay, SPAR, Woolworths Food),
+ *   requiring at least 1 active chain.
+ * - Warm Grocery Option B cards for the #1 Cheapest National Chain, Smart Mode
+ *   split-basket savings breakdown, and Ranked National Chains (pure chain
+ *   pricing only; zero branch names or stock availability text).
+ */
 
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import { useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
+
+import { IconSymbol } from '@/components/ui/IconSymbol';
+import {
+  getCardShadow,
+  Radii,
+  Spacing,
+  Typography,
+} from '@/constants/Theme';
 import { useSyncStatus } from '@/context/SyncStatusContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { getActiveHomeId } from '@/services/api';
 import {
-  HouseholdBasketComparisonResult,
   NATIONAL_RETAILER_CHAINS,
   syncAndCalculateSmartBasket,
 } from '@/services/sync';
 
 const DEFAULT_HOME_ID = '00000000-0000-4000-8000-000000000001';
-const ALL_RETAILER_SLUGS = NATIONAL_RETAILER_CHAINS.map((c) => c.slug);
+
+function formatLastUpdated(iso: string | null): string {
+  if (!iso) {
+    return 'Not yet calculated';
+  }
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Recently updated';
+  }
+  return parsed.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 export default function SmartBasketScreen() {
-  const { colors } = useAppTheme();
-  const { latestComparison, setLatestComparison, setSyncState } =
-    useSyncStatus();
-  const homeId = getActiveHomeId() ?? DEFAULT_HOME_ID;
-  const [comparison, setComparison] =
-    useState<HouseholdBasketComparisonResult | null>(latestComparison);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [smartModeEnabled, setSmartModeEnabled] = useState<boolean>(true);
-  const [selectedSlugs, setSelectedSlugs] =
-    useState<string[]>(ALL_RETAILER_SLUGS);
+  const router = useRouter();
+  const { colors, colorScheme } = useAppTheme();
+  const {
+    latestComparison,
+    lastCalculatedAt,
+    selectedRetailerSlugs,
+    isCacheHydrated,
+    setLatestComparison,
+    setSelectedRetailerSlugs,
+    setSyncState,
+  } = useSyncStatus();
 
-  const refreshComparison = useCallback(
+  const homeId = getActiveHomeId() ?? DEFAULT_HOME_ID;
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [smartModeEnabled, setSmartModeEnabled] = useState<boolean>(true);
+
+  const cardShadow = getCardShadow(colorScheme);
+
+  const runComparison = useCallback(
     async (slugsToEvaluate: string[]) => {
-      setIsLoading(true);
-      const result = await syncAndCalculateSmartBasket(homeId, slugsToEvaluate);
-      setComparison(result);
-      setLatestComparison(result);
-      setIsLoading(false);
-      setSyncState({
-        status: result.isLiveBackend ? 'synced' : 'offline',
-      });
+      setIsRefreshing(true);
+      setSyncState({ status: 'syncing' });
+      try {
+        const result = await syncAndCalculateSmartBasket(homeId, slugsToEvaluate);
+        setLatestComparison(result, slugsToEvaluate);
+        setSyncState({
+          status: result.isLiveBackend ? 'synced' : 'offline',
+        });
+      } finally {
+        setIsRefreshing(false);
+      }
     },
     [homeId, setLatestComparison, setSyncState]
   );
 
-  useEffect(() => {
-    if (latestComparison) {
-      setComparison(latestComparison);
-    }
-  }, [latestComparison]);
-
-  useEffect(() => {
-    void refreshComparison(selectedSlugs);
-  }, [refreshComparison, selectedSlugs]);
-
   const handleToggleStore = (slug: string) => {
-    setSelectedSlugs((prev) => {
-      const isSelected = prev.includes(slug);
-      if (isSelected) {
-        // Prevent unchecking the last remaining store (at least 1 must stay selected)
-        if (prev.length <= 1) {
-          return prev;
-        }
-        return prev.filter((item) => item !== slug);
+    const isSelected = selectedRetailerSlugs.includes(slug);
+    let nextSlugs: string[];
+    if (isSelected) {
+      // Prevent unchecking the last remaining retailer (at least 1 must stay active)
+      if (selectedRetailerSlugs.length <= 1) {
+        return;
       }
-      return [...prev, slug];
-    });
+      nextSlugs = selectedRetailerSlugs.filter((item) => item !== slug);
+    } else {
+      nextSlugs = [...selectedRetailerSlugs, slug];
+    }
+
+    setSelectedRetailerSlugs(nextSlugs);
+    void runComparison(nextSlugs);
   };
 
-  const calc = comparison?.calculation;
-  const cheapestSingle = calc?.cheapest_single_store;
-  const optimalSplit = calc?.optimal_split;
+  const calc = latestComparison?.calculation ?? null;
+  const cheapestSingle = calc?.cheapest_single_store ?? null;
+  const optimalSplit = calc?.optimal_split ?? null;
   const rankedStores = calc?.ranked_stores ?? [];
+
+  const bestSingleTotal = cheapestSingle
+    ? Number(cheapestSingle.total_price)
+    : 0;
 
   return (
     <ScrollView
       style={{ backgroundColor: colors.background }}
-      contentContainerStyle={styles.container}>
-      <ThemedView style={styles.headerCard}>
-        <ThemedText type="title">SmartBasket Optimizer</ThemedText>
-        <ThemedText style={styles.subtitleText}>
-          Multi-chain price comparison fed by low & finished household pantry
-          staples
-        </ThemedText>
-
-        <View style={styles.metaRow}>
-          <ThemedText style={styles.metaText}>
-            Replenishment Items: {calc?.total_items_requested ?? 0}
-          </ThemedText>
-          <ThemedText style={styles.metaText}>
-            Source:{' '}
-            {comparison?.isLiveBackend
-              ? 'Live FastAPI (/baskets/calculate)'
-              : 'Offline Cached Catalog'}
-          </ThemedText>
+      contentContainerStyle={styles.container}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={() => void runComparison(selectedRetailerSlugs)}
+          tintColor={colors.primary}
+          colors={[colors.primary]}
+        />
+      }>
+      {/* Top Header + Last Updated Telemetry */}
+      <View style={styles.headerRow}>
+        <View style={styles.headerTitleGroup}>
+          <Text style={[Typography.title, { color: colors.text }]}>
+            Basket Comparison
+          </Text>
+          <Text style={[Typography.caption, { color: colors.textSecondary }]}>
+            {lastCalculatedAt
+              ? `Last updated ${formatLastUpdated(lastCalculatedAt)} · Pull down to refresh`
+              : 'Tap Compare Prices to evaluate your active pantry items'}
+          </Text>
         </View>
 
         <Pressable
-          style={styles.refreshButton}
-          onPress={() => void refreshComparison(selectedSlugs)}
-          disabled={isLoading}>
-          <ThemedText style={styles.refreshButtonText}>
-            {isLoading
-              ? 'Calculating Best Prices...'
-              : 'Recalculate Selected Chains'}
-          </ThemedText>
+          accessibilityRole="button"
+          accessibilityLabel="Refresh basket price comparison"
+          onPress={() => void runComparison(selectedRetailerSlugs)}
+          disabled={isRefreshing}
+          style={({ pressed }) => [
+            styles.refreshChip,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              opacity: pressed || isRefreshing ? 0.7 : 1,
+            },
+          ]}>
+          {isRefreshing ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <IconSymbol
+              name="arrow.triangle.2.circlepath"
+              size={16}
+              color={colors.primary}
+            />
+          )}
+          <Text style={[styles.refreshChipText, { color: colors.text }]}>
+            {isRefreshing ? 'Updating…' : 'Refresh'}
+          </Text>
         </Pressable>
-      </ThemedView>
+      </View>
 
-      <ThemedView style={styles.checklistCard}>
-        <View style={styles.checklistHeader}>
-          <ThemedText type="subtitle">Included Stores</ThemedText>
-          <ThemedText style={styles.checklistCount}>
-            {selectedSlugs.length} of {NATIONAL_RETAILER_CHAINS.length} selected
-          </ThemedText>
+      {/* Included Retailers Multi-Select Checklist */}
+      <View
+        style={[
+          styles.card,
+          cardShadow,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
+          },
+        ]}>
+        <View style={styles.cardHeaderRow}>
+          <Text style={[Typography.cardTitle, { color: colors.text }]}>
+            Included Retailers
+          </Text>
+          <View
+            style={[
+              styles.countBadge,
+              { backgroundColor: colors.primaryMuted },
+            ]}>
+            <Text style={[Typography.badge, { color: colors.primary }]}>
+              {selectedRetailerSlugs.length} of {NATIONAL_RETAILER_CHAINS.length}
+            </Text>
+          </View>
         </View>
-        <ThemedText style={styles.retailerSub}>
-          Choose which national chains to compare and include in Smart Mode
-          splits:
-        </ThemedText>
 
-        <View style={styles.pillsContainer}>
+        <Text style={[Typography.caption, { color: colors.textSecondary }]}>
+          Select the South African national chains to include in single-chain
+          and Smart Mode comparisons (minimum 1).
+        </Text>
+
+        <View style={styles.retailerPillWrap}>
           {NATIONAL_RETAILER_CHAINS.map((chain) => {
-            const isChecked = selectedSlugs.includes(chain.slug);
-            const isLastRemaining = isChecked && selectedSlugs.length === 1;
+            const isChecked = selectedRetailerSlugs.includes(chain.slug);
+            const isLastRemaining =
+              isChecked && selectedRetailerSlugs.length === 1;
+
             return (
               <Pressable
                 key={chain.slug}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: isChecked, disabled: isLastRemaining }}
                 onPress={() => handleToggleStore(chain.slug)}
-                style={[
-                  styles.storePill,
-                  isChecked ? styles.storePillSelected : styles.storePillUnselected,
-                  isLastRemaining && styles.storePillLocked,
+                style={({ pressed }) => [
+                  styles.retailerPill,
+                  {
+                    backgroundColor: isChecked
+                      ? colors.primaryMuted
+                      : colors.surfaceElevated,
+                    borderColor: isChecked ? colors.primary : colors.border,
+                    opacity: pressed ? 0.78 : isLastRemaining ? 0.92 : 1,
+                  },
                 ]}>
-                <ThemedText
+                <View
                   style={[
-                    styles.storePillText,
-                    isChecked
-                      ? styles.storePillTextSelected
-                      : styles.storePillTextUnselected,
+                    styles.pillCheckCircle,
+                    {
+                      backgroundColor: isChecked
+                        ? colors.primary
+                        : 'transparent',
+                      borderColor: isChecked
+                        ? colors.primary
+                        : colors.textMuted,
+                    },
                   ]}>
-                  {isChecked ? '✓ ' : '+ '}
+                  {isChecked ? (
+                    <IconSymbol
+                      name="checkmark"
+                      size={11}
+                      color={colors.primaryText}
+                    />
+                  ) : null}
+                </View>
+                <Text
+                  style={[
+                    styles.retailerPillText,
+                    {
+                      color: isChecked ? colors.primary : colors.textSecondary,
+                    },
+                  ]}>
                   {chain.name}
-                </ThemedText>
+                </Text>
               </Pressable>
             );
           })}
         </View>
-        {selectedSlugs.length === 1 && (
-          <ThemedText style={styles.minStoreHint}>
-            At least 1 retailer must remain selected for comparison.
-          </ThemedText>
-        )}
-      </ThemedView>
+      </View>
 
-      {cheapestSingle && (
-        <ThemedView style={styles.highlightCard}>
-          <ThemedText style={styles.sectionTag}>
-            CHEAPEST NATIONAL CHAIN
-          </ThemedText>
-          <View style={styles.priceRow}>
-            <View style={styles.storeInfo}>
-              <ThemedText type="subtitle">
-                {cheapestSingle.retailer_name}
-              </ThemedText>
-              <ThemedText style={styles.retailerSub}>
-                National Chain Pricing · {cheapestSingle.total_items_count}{' '}
-                basket {cheapestSingle.total_items_count === 1 ? 'item' : 'items'}
-              </ThemedText>
-            </View>
-            <ThemedText type="title" style={styles.priceHighlight}>
-              R{cheapestSingle.total_price}
-            </ThemedText>
+      {/* Empty / First-Run State (Zero Automatic Fetches on Tab Switch) */}
+      {!calc ? (
+        <View
+          style={[
+            styles.emptyCard,
+            cardShadow,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+            },
+          ]}>
+          <View
+            style={[
+              styles.emptyIconCircle,
+              { backgroundColor: colors.primaryMuted },
+            ]}>
+            <IconSymbol name="basket.fill" size={28} color={colors.primary} />
           </View>
-        </ThemedView>
-      )}
+          <Text style={[Typography.subtitle, { color: colors.text }]}>
+            {isCacheHydrated
+              ? 'Ready to compare prices'
+              : 'Loading cached comparison…'}
+          </Text>
+          <Text
+            style={[
+              Typography.body,
+              styles.emptyCopy,
+              { color: colors.textSecondary },
+            ]}>
+            Your Basket tab caches results to save mobile data. Tap Compare
+            Prices from your Pantry or calculate your selected national chains
+            below.
+          </Text>
 
-      {calc && (
-        <ThemedView style={styles.splitCard}>
-          <View style={styles.smartModeToggleRow}>
-            <View style={styles.smartModeTitleGroup}>
-              <ThemedText style={styles.splitTag}>
-                SMART MODE (SPLIT BASKET)
-              </ThemedText>
-              <ThemedText style={styles.retailerSub}>
-                Optimal split across your {selectedSlugs.length} selected{' '}
-                {selectedSlugs.length === 1 ? 'chain' : 'chains'}
-              </ThemedText>
-            </View>
-            <Switch
-              value={smartModeEnabled}
-              onValueChange={setSmartModeEnabled}
-              trackColor={{ false: '#555558', true: '#0A7EA4' }}
-              thumbColor="#FFFFFF"
-            />
+          <View style={styles.emptyActions}>
+            <Pressable
+              onPress={() => void runComparison(selectedRetailerSlugs)}
+              disabled={isRefreshing}
+              style={({ pressed }) => [
+                styles.primaryCta,
+                {
+                  backgroundColor: pressed
+                    ? colors.primaryPressed
+                    : colors.primary,
+                },
+              ]}>
+              <Text
+                style={[styles.primaryCtaText, { color: colors.primaryText }]}>
+                {isRefreshing ? 'Calculating…' : 'Calculate Basket Now'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.push('/(tabs)')}
+              style={[
+                styles.secondaryCta,
+                {
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                },
+              ]}>
+              <Text style={[styles.secondaryCtaText, { color: colors.text }]}>
+                Back to Pantry
+              </Text>
+            </Pressable>
           </View>
-
-          {smartModeEnabled ? (
-            optimalSplit && optimalSplit.cheaper_than_single_store ? (
-              <View style={styles.splitBody}>
-                <View style={styles.splitHeader}>
-                  <ThemedText type="subtitle">
-                    Smart Mode ({optimalSplit.stores.length}-Chain Split)
-                  </ThemedText>
-                  <ThemedText style={styles.savingsBadge}>
-                    Save R{optimalSplit.savings_amount} (
-                    {optimalSplit.savings_percentage}%) vs. #1{' '}
-                    {cheapestSingle?.retailer_name ?? 'Chain'}
-                  </ThemedText>
+        </View>
+      ) : (
+        <>
+          {/* #1 Cheapest National Chain Hero Card */}
+          {cheapestSingle ? (
+            <View
+              style={[
+                styles.heroCard,
+                cardShadow,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.primary,
+                },
+              ]}>
+              <View style={styles.cardHeaderRow}>
+                <View
+                  style={[
+                    styles.heroBadge,
+                    { backgroundColor: colors.primaryMuted },
+                  ]}>
+                  <Text style={[Typography.badge, { color: colors.primary }]}>
+                    #1 CHEAPEST NATIONAL CHAIN
+                  </Text>
                 </View>
+                <Text style={[Typography.caption, { color: colors.textMuted }]}>
+                  {calc.total_items_requested} item
+                  {calc.total_items_requested === 1 ? '' : 's'}
+                </Text>
+              </View>
 
-                <View style={styles.priceRow}>
-                  <ThemedText style={styles.retailerSub}>
-                    Combined split total (was R
-                    {cheapestSingle?.total_price ?? optimalSplit.total_price})
-                  </ThemedText>
-                  <ThemedText type="title" style={styles.splitPrice}>
-                    R{optimalSplit.total_price}
-                  </ThemedText>
-                </View>
+              <View style={styles.heroPriceRow}>
+                <Text style={[Typography.title, { color: colors.text, flex: 1 }]}>
+                  {cheapestSingle.retailer_name}
+                </Text>
+                <Text style={[Typography.hero, { color: colors.primary }]}>
+                  R {cheapestSingle.total_price}
+                </Text>
+              </View>
 
-                {optimalSplit.stores.map((allocation) => (
-                  <View key={allocation.store_id} style={styles.allocationBox}>
-                    <View style={styles.allocationHeader}>
-                      <ThemedText type="defaultSemiBold">
-                        {allocation.retailer_name}
-                      </ThemedText>
-                      <ThemedText type="defaultSemiBold">
-                        Subtotal: R{allocation.subtotal}
-                      </ThemedText>
+              <View
+                style={[
+                  styles.lineItemsBox,
+                  {
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: colors.borderSubtle,
+                  },
+                ]}>
+                {cheapestSingle.items.map((item) => (
+                  <View key={item.product_id} style={styles.lineItemRow}>
+                    <View style={styles.lineItemInfo}>
+                      <Text
+                        numberOfLines={1}
+                        style={[Typography.bodySemiBold, { color: colors.text }]}>
+                        {item.product_name}
+                      </Text>
+                      <Text
+                        style={[Typography.caption, { color: colors.textMuted }]}>
+                        Qty {item.quantity} × R {item.unit_price}
+                      </Text>
                     </View>
-                    {allocation.items.map((item) => (
-                      <ThemedText
-                        key={item.product_id}
-                        style={styles.lineItemText}>
-                        • {item.product_name} ({item.quantity}x @ R
-                        {item.unit_price}) = R{item.subtotal}
-                        {item.is_promotional ? ' [PROMO]' : ''}
-                      </ThemedText>
-                    ))}
+                    <View style={styles.lineItemPriceGroup}>
+                      {item.is_promotional ? (
+                        <View
+                          style={[
+                            styles.promoTag,
+                            { backgroundColor: colors.statusLowBg },
+                          ]}>
+                          <Text
+                            style={[
+                              Typography.badge,
+                              { color: colors.statusLow },
+                            ]}>
+                            PROMO
+                          </Text>
+                        </View>
+                      ) : null}
+                      <Text
+                        style={[Typography.bodySemiBold, { color: colors.text }]}>
+                        R {item.subtotal}
+                      </Text>
+                    </View>
                   </View>
                 ))}
               </View>
-            ) : (
-              <View style={styles.singleOptimalBadge}>
-                <ThemedText style={styles.singleOptimalText}>
-                  Single-store shopping at{' '}
-                  {cheapestSingle?.retailer_name ?? 'the #1 chain'} is already
-                  optimal for every item among your selected stores.
-                </ThemedText>
-              </View>
-            )
-          ) : (
-            <ThemedText style={styles.retailerSub}>
-              Enable Smart Mode to inspect multi-chain split recommendations and
-              potential savings.
-            </ThemedText>
-          )}
-        </ThemedView>
-      )}
 
-      <ThemedView style={styles.rankingsSection}>
-        <ThemedText type="subtitle">
-          National Retailers Ranked ({rankedStores.length})
-        </ThemedText>
-        {rankedStores.map((store, index) => (
-          <ThemedView key={store.store_id} style={styles.storeRow}>
-            <View style={styles.rankInfo}>
-              <ThemedText type="defaultSemiBold">
-                #{index + 1} {store.retailer_name}
-              </ThemedText>
-              <ThemedText style={styles.retailerSub}>
-                National chain basket total
-              </ThemedText>
+              <Text style={[Typography.caption, { color: colors.textMuted }]}>
+                {latestComparison?.isLiveBackend
+                  ? 'Live national chain pricing via SmartBasket API'
+                  : 'Cached offline national chain catalog'}
+              </Text>
             </View>
-            <ThemedText type="defaultSemiBold" style={styles.storeTotalText}>
-              R{store.total_price}
-            </ThemedText>
-          </ThemedView>
-        ))}
-      </ThemedView>
+          ) : null}
+
+          {/* Smart Mode (Split Basket) Card */}
+          <View
+            style={[
+              styles.card,
+              cardShadow,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+            ]}>
+            <View style={styles.cardHeaderRow}>
+              <View style={styles.smartTitleGroup}>
+                <Text style={[Typography.subtitle, { color: colors.text }]}>
+                  Smart Mode Split
+                </Text>
+                <Text
+                  style={[Typography.caption, { color: colors.textSecondary }]}>
+                  Optimal per-item split across selected chains
+                </Text>
+              </View>
+              <Switch
+                value={smartModeEnabled}
+                onValueChange={setSmartModeEnabled}
+                trackColor={{
+                  false: colors.border,
+                  true: colors.primaryMuted,
+                }}
+                thumbColor={
+                  smartModeEnabled ? colors.primary : colors.textMuted
+                }
+              />
+            </View>
+
+            {smartModeEnabled ? (
+              optimalSplit && optimalSplit.cheaper_than_single_store ? (
+                <View style={styles.splitContent}>
+                  <View
+                    style={[
+                      styles.savingsHeroRow,
+                      {
+                        backgroundColor: colors.accentSavingsBg,
+                        borderColor: colors.accentSavings,
+                      },
+                    ]}>
+                    <View style={styles.savingsCopy}>
+                      <Text
+                        style={[
+                          Typography.badge,
+                          { color: colors.accentSavings },
+                        ]}>
+                        SPLIT ACROSS {optimalSplit.stores.length} CHAINS
+                      </Text>
+                      <Text
+                        style={[
+                          Typography.subtitle,
+                          { color: colors.text, marginTop: 2 },
+                        ]}>
+                        Save R {optimalSplit.savings_amount} (
+                        {optimalSplit.savings_percentage}%)
+                      </Text>
+                    </View>
+                    <View style={styles.splitTotalBox}>
+                      <Text
+                        style={[Typography.caption, { color: colors.textMuted }]}>
+                        Split Total
+                      </Text>
+                      <Text
+                        style={[
+                          Typography.title,
+                          { color: colors.accentSavings },
+                        ]}>
+                        R {optimalSplit.total_price}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {optimalSplit.stores.map((alloc) => (
+                    <View
+                      key={alloc.store_id}
+                      style={[
+                        styles.splitChainCard,
+                        {
+                          backgroundColor: colors.surfaceElevated,
+                          borderColor: colors.borderSubtle,
+                        },
+                      ]}>
+                      <View style={styles.cardHeaderRow}>
+                        <Text
+                          style={[
+                            Typography.cardTitle,
+                            { color: colors.primary },
+                          ]}>
+                          {alloc.retailer_name}
+                        </Text>
+                        <Text
+                          style={[
+                            Typography.bodySemiBold,
+                            { color: colors.text },
+                          ]}>
+                          R {alloc.subtotal}
+                        </Text>
+                      </View>
+                      {alloc.items.map((item) => (
+                        <View
+                          key={`${alloc.store_id}-${item.product_id}`}
+                          style={styles.splitItemRow}>
+                          <Text
+                            numberOfLines={1}
+                            style={[
+                              Typography.caption,
+                              { color: colors.textSecondary, flex: 1 },
+                            ]}>
+                            • {item.product_name} ({item.quantity})
+                          </Text>
+                          <View style={styles.lineItemPriceGroup}>
+                            {item.is_promotional ? (
+                              <View
+                                style={[
+                                  styles.promoTag,
+                                  { backgroundColor: colors.statusLowBg },
+                                ]}>
+                                <Text
+                                  style={[
+                                    Typography.badge,
+                                    { color: colors.statusLow },
+                                  ]}>
+                                  PROMO
+                                </Text>
+                              </View>
+                            ) : null}
+                            <Text
+                              style={[
+                                Typography.caption,
+                                { color: colors.text, fontWeight: '700' },
+                              ]}>
+                              R {item.subtotal}
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View
+                  style={[
+                    styles.optimalNotice,
+                    {
+                      backgroundColor: colors.statusOkBg,
+                      borderColor: colors.borderSubtle,
+                    },
+                  ]}>
+                  <IconSymbol
+                    name="checkmark.circle.fill"
+                    size={18}
+                    color={colors.statusOk}
+                  />
+                  <Text
+                    style={[
+                      Typography.caption,
+                      { color: colors.statusOk, flex: 1 },
+                    ]}>
+                    {selectedRetailerSlugs.length < 2
+                      ? 'Select 2 or more chains above to compare multi-chain split savings.'
+                      : 'Single-chain shopping is already optimal for your current basket.'}
+                  </Text>
+                </View>
+              )
+            ) : null}
+          </View>
+
+          {/* Ranked National Chains Comparison Card */}
+          <View
+            style={[
+              styles.card,
+              cardShadow,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+            ]}>
+            <View style={styles.cardHeaderRow}>
+              <Text style={[Typography.subtitle, { color: colors.text }]}>
+                All Selected Chains
+              </Text>
+              <Text style={[Typography.caption, { color: colors.textMuted }]}>
+                Lowest total first
+              </Text>
+            </View>
+
+            <View style={styles.rankedStack}>
+              {rankedStores.map((store, idx) => {
+                const isBest = idx === 0;
+                const diff = Math.max(
+                  0,
+                  Number(store.total_price) - bestSingleTotal
+                );
+
+                return (
+                  <View
+                    key={store.store_id}
+                    style={[
+                      styles.rankedRow,
+                      {
+                        backgroundColor: isBest
+                          ? colors.primaryMuted
+                          : colors.surfaceElevated,
+                        borderColor: isBest
+                          ? colors.primary
+                          : colors.borderSubtle,
+                      },
+                    ]}>
+                    <View
+                      style={[
+                        styles.rankPill,
+                        {
+                          backgroundColor: isBest
+                            ? colors.primary
+                            : colors.surfaceMuted,
+                        },
+                      ]}>
+                      <Text
+                        style={[
+                          styles.rankPillText,
+                          {
+                            color: isBest
+                              ? colors.primaryText
+                              : colors.textSecondary,
+                          },
+                        ]}>
+                        #{idx + 1}
+                      </Text>
+                    </View>
+
+                    <View style={styles.rankedChainInfo}>
+                      <Text
+                        style={[Typography.bodySemiBold, { color: colors.text }]}>
+                        {store.retailer_name}
+                      </Text>
+                      <Text
+                        style={[Typography.caption, { color: colors.textMuted }]}>
+                        {isBest
+                          ? 'Best single-chain total'
+                          : `+R ${diff.toFixed(2)} vs. #1 chain`}
+                      </Text>
+                    </View>
+
+                    <Text
+                      style={[
+                        Typography.cardTitle,
+                        { color: isBest ? colors.primary : colors.text },
+                      ]}>
+                      R {store.total_price}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </>
+      )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: 16,
-    paddingTop: 56,
-    gap: 16,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xxl + 16,
+    gap: Spacing.md,
   },
-  headerCard: {
-    padding: 16,
-    borderRadius: 12,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: '#2E5A6B',
-  },
-  subtitleText: {
-    fontSize: 13,
-    opacity: 0.8,
-  },
-  metaRow: {
+  headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  metaText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  refreshButton: {
-    backgroundColor: '#0A7EA4',
-    paddingVertical: 10,
-    borderRadius: 8,
     alignItems: 'center',
-    marginTop: 4,
-  },
-  refreshButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  checklistCard: {
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#3A3A3C',
-    gap: 10,
-  },
-  checklistHeader: {
-    flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: Spacing.sm,
   },
-  checklistCount: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0A7EA4',
-  },
-  pillsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 2,
-  },
-  storePill: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  storePillSelected: {
-    backgroundColor: '#0A7EA4',
-    borderColor: '#0A7EA4',
-  },
-  storePillUnselected: {
-    backgroundColor: 'transparent',
-    borderColor: '#666',
-  },
-  storePillLocked: {
-    opacity: 0.85,
-  },
-  storePillText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  storePillTextSelected: {
-    color: '#FFFFFF',
-  },
-  storePillTextUnselected: {
-    opacity: 0.75,
-  },
-  minStoreHint: {
-    fontSize: 11,
-    color: '#F59E0B',
-    fontWeight: '600',
-  },
-  highlightCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#1B7F4C',
-    gap: 8,
-  },
-  sectionTag: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#1B7F4C',
-    letterSpacing: 0.8,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  storeInfo: {
-    flex: 1,
-    paddingRight: 8,
-  },
-  retailerSub: {
-    fontSize: 12,
-    opacity: 0.75,
-  },
-  priceHighlight: {
-    color: '#1B7F4C',
-  },
-  splitCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#0A7EA4',
-    gap: 10,
-  },
-  smartModeToggleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-  },
-  smartModeTitleGroup: {
+  headerTitleGroup: {
     flex: 1,
     gap: 2,
   },
-  splitBody: {
-    gap: 10,
-    paddingTop: 4,
-  },
-  splitHeader: {
+  refreshChip: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  singleOptimalBadge: {
-    backgroundColor: '#243B32',
-    borderWidth: 1,
-    borderColor: '#1B7F4C',
+    gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 8,
+    borderRadius: Radii.pill,
+    borderWidth: 1,
   },
-  singleOptimalText: {
-    fontSize: 12,
-    color: '#A7F3D0',
-    fontWeight: '600',
-  },
-  splitTag: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#0A7EA4',
-    letterSpacing: 0.8,
-  },
-  savingsBadge: {
-    backgroundColor: '#1B7F4C',
-    color: '#FFFFFF',
-    fontSize: 11,
+  refreshChipText: {
+    fontSize: 13,
     fontWeight: '700',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
   },
-  splitPrice: {
-    color: '#0A7EA4',
-  },
-  allocationBox: {
-    padding: 10,
-    borderRadius: 8,
+  card: {
+    borderRadius: Radii.lg,
+    padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: '#3A3A3C',
-    gap: 4,
+    gap: Spacing.md,
   },
-  allocationHeader: {
+  heroCard: {
+    borderRadius: Radii.xl,
+    padding: Spacing.lg,
+    borderWidth: 1.5,
+    gap: Spacing.md,
+  },
+  cardHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  lineItemText: {
-    fontSize: 12,
-    opacity: 0.85,
-  },
-  rankingsSection: {
-    gap: 10,
-  },
-  storeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 14,
-    borderRadius: 10,
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  countBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radii.pill,
+  },
+  retailerPillWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  retailerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: Radii.pill,
     borderWidth: 1,
-    borderColor: '#3A3A3C',
   },
-  rankInfo: {
+  pillCheckCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: Radii.pill,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retailerPillText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  heroBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radii.pill,
+  },
+  heroPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+  lineItemsBox: {
+    borderRadius: Radii.md,
+    padding: Spacing.md,
+    borderWidth: 1,
+    gap: Spacing.sm + 2,
+  },
+  lineItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  lineItemInfo: {
     flex: 1,
-    paddingRight: 8,
+    gap: 1,
   },
-  storeTotalText: {
-    fontSize: 16,
+  lineItemPriceGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  promoTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radii.pill,
+  },
+  smartTitleGroup: {
+    flex: 1,
+    gap: 2,
+  },
+  splitContent: {
+    gap: Spacing.sm + 2,
+  },
+  savingsHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: Radii.md,
+    borderWidth: 1,
+  },
+  savingsCopy: {
+    flex: 1,
+  },
+  splitTotalBox: {
+    alignItems: 'flex-end',
+  },
+  splitChainCard: {
+    borderRadius: Radii.md,
+    padding: Spacing.md,
+    borderWidth: 1,
+    gap: Spacing.xs + 2,
+  },
+  splitItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  optimalNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: Radii.md,
+    borderWidth: 1,
+  },
+  rankedStack: {
+    gap: Spacing.sm,
+  },
+  rankedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
+    borderRadius: Radii.md,
+    borderWidth: 1,
+  },
+  rankPill: {
+    width: 34,
+    height: 28,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rankPillText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  rankedChainInfo: {
+    flex: 1,
+    gap: 1,
+  },
+  emptyCard: {
+    borderRadius: Radii.xl,
+    padding: Spacing.xxl,
+    borderWidth: 1,
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  emptyIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: Radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyCopy: {
+    textAlign: 'center',
+  },
+  emptyActions: {
+    width: '100%',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  primaryCta: {
+    paddingVertical: 14,
+    borderRadius: Radii.pill,
+    alignItems: 'center',
+  },
+  primaryCtaText: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  secondaryCta: {
+    paddingVertical: 12,
+    borderRadius: Radii.pill,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  secondaryCtaText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

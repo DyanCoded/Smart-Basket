@@ -1,6 +1,7 @@
 # Architectural Decision Records (ADR)
 
 ## Log Summary
+- **2026-11-21:** Redesigned `mobile/app/(tabs)/explore.tsx` (Basket tab) with data-saving persisted comparison cache (`SQLite`/`localStorage`, zero auto-fetch on tab switch, `"Last updated …"` timestamp, pull-to-refresh), Included Retailers multi-select checklist (min 1 chain), and Warm Grocery Option B cards for the #1 Cheapest National Chain, Smart Mode split savings, and Ranked Chains (Issue #27).
 - **2026-11-21:** Redesigned `mobile/app/(tabs)/index.tsx` as a zero-clutter active restock list (hiding `ok` items while preserving SQLite/Postgres history for instant search re-flagging), added `By Status` / `By Aisle` toggle hiding empty aisles, and added the floating `Compare Prices (N)` CTA triggering fresh `POST /api/v1/baskets/calculate` into the Basket tab (Issue #26).
 - **2026-11-21:** Adopted the Fresh & Warm Modern Grocery design system in `mobile/` (`Colors.ts`, `Theme.ts`, `ThemeContext.tsx`, `SyncStatusContext.tsx`) with persisted Dark (primary) / Light / System mode, 3-tab bottom bar (`Pantry` | `Basket` | `Home`) + top `SyncStatusBar`, and removed unused Expo starter components and placeholder React logos (Issue #25).
 - **2026-11-21:** Polished `scripts/run_scrapers.py` telemetry to flag 0-item runs as `PARTIAL (0 items)` instead of `OK`, and added `--source-dir` structured JSON/CSV catalog feed ingestion (`src/scrapers/feed_loader.py`) with `PLACEHOLDER_` sample snapshot fixtures under `tests/fixtures/feeds/` for end-to-end ingestion and basket recalculation verification.

@@ -3,6 +3,8 @@ import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useSyncStatus } from '@/context/SyncStatusContext';
+import { useAppTheme } from '@/context/ThemeContext';
 import { getActiveHomeId } from '@/services/api';
 import {
   HouseholdBasketComparisonResult,
@@ -14,6 +16,8 @@ const DEFAULT_HOME_ID = '00000000-0000-4000-8000-000000000001';
 const ALL_RETAILER_SLUGS = NATIONAL_RETAILER_CHAINS.map((c) => c.slug);
 
 export default function SmartBasketScreen() {
+  const { colors } = useAppTheme();
+  const { setSyncState } = useSyncStatus();
   const homeId = getActiveHomeId() ?? DEFAULT_HOME_ID;
   const [comparison, setComparison] =
     useState<HouseholdBasketComparisonResult | null>(null);
@@ -28,8 +32,11 @@ export default function SmartBasketScreen() {
       const result = await syncAndCalculateSmartBasket(homeId, slugsToEvaluate);
       setComparison(result);
       setIsLoading(false);
+      setSyncState({
+        status: result.isLiveBackend ? 'synced' : 'offline',
+      });
     },
-    [homeId]
+    [homeId, setSyncState]
   );
 
   useEffect(() => {
@@ -56,7 +63,9 @@ export default function SmartBasketScreen() {
   const rankedStores = calc?.ranked_stores ?? [];
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={styles.container}>
       <ThemedView style={styles.headerCard}>
         <ThemedText type="title">SmartBasket Optimizer</ThemedText>
         <ThemedText style={styles.subtitleText}>

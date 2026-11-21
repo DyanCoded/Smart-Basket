@@ -65,6 +65,13 @@ export const CREATE_SYNC_META_TABLE_SQL = `
   );
 `;
 
+export const CREATE_PREFERENCES_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS user_preferences (
+    key TEXT PRIMARY KEY NOT NULL,
+    value TEXT NOT NULL
+  );
+`;
+
 let dbInstance: SQLiteDatabase | null = null;
 let useInMemoryFallback = false;
 
@@ -72,6 +79,7 @@ let useInMemoryFallback = false;
 const memoryPantryItems = new Map<string, PantryItemResponse>();
 const memoryPendingSync = new Map<string, { homeId: string; mutation: PantrySyncMutation }>();
 const memorySyncMeta = new Map<string, string>();
+const memoryPreferences = new Map<string, string>();
 
 export async function initLocalDatabase(): Promise<SQLiteDatabase | null> {
   if (dbInstance) {
@@ -102,6 +110,7 @@ export async function initLocalDatabase(): Promise<SQLiteDatabase | null> {
     await db.executeSql(CREATE_PANTRY_TABLE_SQL);
     await db.executeSql(CREATE_PENDING_SYNC_TABLE_SQL);
     await db.executeSql(CREATE_SYNC_META_TABLE_SQL);
+    await db.executeSql(CREATE_PREFERENCES_TABLE_SQL);
 
     // Heal any previously cached stale demo Eggs product_id in local SQLite
     await db.executeSql(
@@ -350,4 +359,56 @@ export async function applyServerDeltasToLocalDb(
     await upsertLocalPantryItem(delta);
   }
   await setLastSyncedAt(homeId, syncedAt);
+}
+
+export async function getUserPreference(key: string): Promise<string | null> {
+  if (Platform.OS === 'web' && typeof globalThis.localStorage !== 'undefined') {
+    try {
+      const stored = globalThis.localStorage.getItem(`smartbasket:${key}`);
+      if (stored !== null) {
+        memoryPreferences.set(key, stored);
+        return stored;
+      }
+    } catch {
+      // Ignore restricted storage environments
+    }
+  }
+
+  const db = await initLocalDatabase();
+  if (!db) {
+    return memoryPreferences.get(key) ?? null;
+  }
+
+  const [results] = await db.executeSql(
+    `SELECT value FROM user_preferences WHERE key = ? LIMIT 1;`,
+    [key]
+  );
+  if (results.rows.length === 0) {
+    return memoryPreferences.get(key) ?? null;
+  }
+  const value = String(results.rows.item(0).value);
+  memoryPreferences.set(key, value);
+  return value;
+}
+
+export async function setUserPreference(key: string, value: string): Promise<void> {
+  memoryPreferences.set(key, value);
+
+  if (Platform.OS === 'web' && typeof globalThis.localStorage !== 'undefined') {
+    try {
+      globalThis.localStorage.setItem(`smartbasket:${key}`, value);
+    } catch {
+      // Ignore restricted storage environments
+    }
+  }
+
+  const db = await initLocalDatabase();
+  if (!db) {
+    return;
+  }
+
+  await db.executeSql(
+    `INSERT OR REPLACE INTO user_preferences (key, value) VALUES (?, ?);`,
+    [key, value]
+  );
 }

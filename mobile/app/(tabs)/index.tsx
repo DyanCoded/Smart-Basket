@@ -3,6 +3,8 @@ import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useSyncStatus } from '@/context/SyncStatusContext';
+import { useAppTheme } from '@/context/ThemeContext';
 import {
   enqueuePendingSync,
   getLocalPantryItems,
@@ -80,6 +82,8 @@ const INITIAL_PANTRY_FIXTURES: PantryItemResponse[] = [
 ];
 
 export default function PantryScreen() {
+  const { colors } = useAppTheme();
+  const { setSyncState } = useSyncStatus();
   const homeId = getActiveHomeId() ?? DEFAULT_HOME_ID;
   const [items, setItems] = useState<PantryItemResponse[]>([]);
   const [isOnline, setIsOnline] = useState<boolean>(false);
@@ -90,6 +94,7 @@ export default function PantryScreen() {
 
   const loadAndSyncPantry = useCallback(async () => {
     setIsSyncing(true);
+    setSyncState({ status: 'syncing' });
     setActiveHomeId(homeId);
 
     const existing = await getLocalPantryItems(homeId);
@@ -119,7 +124,12 @@ export default function PantryScreen() {
     setPendingCount(summary.pendingCount);
     setLastSyncedAt(summary.lastSyncedAt);
     setIsSyncing(false);
-  }, [homeId]);
+    setSyncState({
+      status: summary.isOnline ? 'synced' : 'offline',
+      pendingCount: summary.pendingCount,
+      lastSyncedAt: summary.lastSyncedAt,
+    });
+  }, [homeId, setSyncState]);
 
   useEffect(() => {
     void loadAndSyncPantry();
@@ -183,7 +193,9 @@ export default function PantryScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={styles.container}>
       <ThemedView style={styles.headerCard}>
         <ThemedText type="title">KitchenSync Pantry</ThemedText>
         <ThemedText style={styles.subtitleText}>

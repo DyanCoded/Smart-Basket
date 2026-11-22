@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 from fastapi import status
 from pydantic import BaseModel, ConfigDict, Field
@@ -1035,6 +1035,7 @@ class HomeCreateRequest(BaseModel):
             "examples": [
                 {
                     "name": "Family Beach House",
+                    "role": "buyer",
                 }
             ]
         }
@@ -1042,6 +1043,34 @@ class HomeCreateRequest(BaseModel):
 
     name: str = Field(
         ..., min_length=1, max_length=150, description="Display name for household."
+    )
+    role: Literal["buyer", "consumer"] = Field(
+        default="buyer",
+        description="Creator role in the new household: 'buyer' or 'consumer'.",
+    )
+
+
+class HomeJoinRequest(BaseModel):
+    """Join an existing household using its unique Home ID."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "home_id": "33333333-4444-5555-6666-777777777777",
+                    "role": "consumer",
+                }
+            ]
+        }
+    )
+
+    home_id: uuid.UUID = Field(
+        ...,
+        description="Unique UUID of the existing household to join.",
+    )
+    role: Literal["buyer", "consumer"] = Field(
+        default="consumer",
+        description="Role to assign upon joining: 'consumer' or 'buyer'.",
     )
 
 

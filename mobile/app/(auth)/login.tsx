@@ -48,8 +48,12 @@ export default function LoginScreen() {
     }
 
     try {
-      await signIn(identifier.trim(), password);
-      router.replace('/(tabs)/household' as Href);
+      const homesCount = await signIn(identifier.trim(), password);
+      if (homesCount === 0) {
+        router.replace('/(auth)/home-setup' as Href);
+      } else {
+        router.replace('/(tabs)/household' as Href);
+      }
     } catch (err) {
       setErrorMessage(
         err instanceof Error ? err.message : 'Unable to sign in right now.'

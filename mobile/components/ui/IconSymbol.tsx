@@ -22,6 +22,7 @@ const MAPPING = {
   'house.fill': 'home',
   'person.fill': 'person',
   'person.badge.plus': 'person-add',
+  'doc.on.doc': 'content-copy',
   trash: 'delete-outline',
   'sun.max.fill': 'light-mode',
   'moon.fill': 'dark-mode',

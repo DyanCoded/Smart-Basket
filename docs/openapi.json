@@ -322,6 +322,93 @@
         ]
       }
     },
+    "/api/v1/homes/join": {
+      "post": {
+        "tags": [
+          "homes"
+        ],
+        "summary": "Join an existing household by unique Home ID",
+        "description": "Join an existing household using its unique UUID (Home.id) with either 'consumer' or 'buyer' role, avoiding ambiguity across households sharing the same display name.",
+        "operationId": "join_home_api_v1_homes_join_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HomeJoinRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Joined household successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomeDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - invalid query parameters or logical error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or expired credentials/token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - requested resource does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content - validation error in parameters or payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error occurred.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/homes/{home_id}": {
       "get": {
         "tags": [
@@ -2789,6 +2876,16 @@
             "minLength": 1,
             "title": "Name",
             "description": "Display name for household."
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "buyer",
+              "consumer"
+            ],
+            "title": "Role",
+            "description": "Creator role in the new household: 'buyer' or 'consumer'.",
+            "default": "buyer"
           }
         },
         "type": "object",
@@ -2799,7 +2896,8 @@
         "description": "Household creation payload.",
         "examples": [
           {
-            "name": "Family Beach House"
+            "name": "Family Beach House",
+            "role": "buyer"
           }
         ]
       },
@@ -2861,6 +2959,38 @@
             ],
             "name": "Family Beach House",
             "role": "buyer"
+          }
+        ]
+      },
+      "HomeJoinRequest": {
+        "properties": {
+          "home_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Home Id",
+            "description": "Unique UUID of the existing household to join."
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "buyer",
+              "consumer"
+            ],
+            "title": "Role",
+            "description": "Role to assign upon joining: 'consumer' or 'buyer'.",
+            "default": "consumer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "home_id"
+        ],
+        "title": "HomeJoinRequest",
+        "description": "Join an existing household using its unique Home ID.",
+        "examples": [
+          {
+            "home_id": "33333333-4444-5555-6666-777777777777",
+            "role": "consumer"
           }
         ]
       },

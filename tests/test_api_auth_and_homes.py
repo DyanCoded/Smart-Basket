@@ -457,3 +457,137 @@ def test_remove_household_member(client: TestClient) -> None:
         ).status_code
         == 403
     )
+
+
+def test_login_accepts_case_insensitive_username_and_email(
+    client: TestClient,
+) -> None:
+    """Verify login accepts username or email cleanly regardless of casing."""
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "username": "CaseUser1",
+            "email": "CaseUser1@SmartBasket.local",
+            "password": "TestPass123!",
+        },
+    )
+
+    for payload in (
+        {"username": "caseuser1", "password": "TestPass123!"},
+        {"username": "CASEUSER1", "password": "TestPass123!"},
+        {"email": "caseuser1@smartbasket.local", "password": "TestPass123!"},
+        {"identifier": "CASEUSER1@SMARTBASKET.LOCAL", "password": "TestPass123!"},
+    ):
+        res = client.post("/api/v1/auth/login", json=payload)
+        assert res.status_code == 200
+        assert "access_token" in res.json()
+
+
+def test_join_home_by_unique_id(client: TestClient) -> None:
+    """Verify POST /api/v1/homes/join joins existing home by UUID with role."""
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "username": "join_owner",
+            "email": "join_owner@smartbasket.local",
+            "password": "TestPass123!",
+        },
+    )
+    owner_token = client.post(
+        "/api/v1/auth/login",
+        json={"username": "join_owner", "password": "TestPass123!"},
+    ).json()["access_token"]
+    owner_headers = {"Authorization": f"Bearer {owner_token}"}
+
+    # Owner creates a home (with explicit role='buyer')
+    home_res = client.post(
+        "/api/v1/homes",
+        json={"name": "Shared Family Home", "role": "buyer"},
+        headers=owner_headers,
+    )
+    assert home_res.status_code == 201
+    home_id = home_res.json()["id"]
+
+    # Second user registers and joins via unique Home ID
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "username": "join_member",
+            "email": "join_member@smartbasket.local",
+            "password": "TestPass123!",
+        },
+    )
+    member_token = client.post(
+        "/api/v1/auth/login",
+        json={"username": "join_member", "password": "TestPass123!"},
+    ).json()["access_token"]
+    member_headers = {"Authorization": f"Bearer {member_token}"}
+
+    join_res = client.post(
+        "/api/v1/homes/join",
+        json={"home_id": home_id, "role": "consumer"},
+        headers=member_headers,
+    )
+    assert join_res.status_code == 201
+    joined = join_res.json()
+    assert joined["id"] == home_id
+    assert joined["role"] == "consumer"
+    assert len(joined["members"]) == 2
+    assert any(
+        m["username"] == "join_member" and m["role"] == "consumer"
+        for m in joined["members"]
+    )
+
+    # Duplicate join rejected cleanly with 400
+    dup_res = client.post(
+        "/api/v1/homes/join",
+        json={"home_id": home_id, "role": "buyer"},
+        headers=member_headers,
+    )
+    assert dup_res.status_code == 400
+    assert "already a member" in dup_res.json()["detail"].lower()
+
+    # Nonexistent Home ID returns 404
+    missing_res = client.post(
+        "/api/v1/homes/join",
+        json={"home_id": str(uuid.uuid4()), "role": "consumer"},
+        headers=member_headers,
+    )
+    assert missing_res.status_code == 404
+
+
+def test_seed_users_reset_preserves_catalog_and_seeds_demo_home(
+    db_session,
+) -> None:
+    """Verify seed_users.py --reset preserves products/prices & seeds 3 accounts."""
+    from sqlalchemy import func, select
+
+    from scripts.seed_users import DEMO_HOME_ID, seed_users_database
+    from src.models.entities import Membership, Product, StorePrice, User
+
+    initial_products = db_session.scalar(select(func.count(Product.id)))
+    initial_prices = db_session.scalar(select(func.count(StorePrice.id)))
+    assert initial_products == 18
+    assert initial_prices == 90
+
+    result = seed_users_database(db_session, reset=True, commit=False)
+    assert result["home_id"] == str(DEMO_HOME_ID)
+    assert result["users_created"] == 3
+    assert result["memberships_created"] == 3
+
+    # Catalog strictly untouched
+    assert db_session.scalar(select(func.count(Product.id))) == initial_products
+    assert db_session.scalar(select(func.count(StorePrice.id))) == initial_prices
+
+    # All 3 accounts exist with expected roles
+    users = db_session.scalars(select(User)).all()
+    assert {u.username for u in users} == {"buyer1", "consumer1", "consumer2"}
+    memberships = db_session.scalars(
+        select(Membership).where(Membership.home_id == DEMO_HOME_ID)
+    ).all()
+    assert len(memberships) == 3
+
+    # Idempotent second run without --reset creates 0 duplicates
+    second = seed_users_database(db_session, reset=False, commit=False)
+    assert second["users_created"] == 0
+    assert second["memberships_created"] == 0

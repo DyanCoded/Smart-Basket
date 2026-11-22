@@ -1,9 +1,9 @@
 /**
- * Authentication & Household Management context for SmartBasket & KitchenSync (#29).
+ * Authentication & Household Management context for SmartBasket & KitchenSync.
  *
  * Persists JWT access token and active household ID in SQLite / localStorage,
- * exposes Sign In, Registration + Home Onboarding, Household Switching, and
- * Buyer / Consumer member invite & removal actions wired directly to FastAPI.
+ * supporting two-step onboarding (Register/Login -> Create or Join Home by ID),
+ * household switching, and Buyer / Consumer RBAC roster management.
  */
 
 import React, {
@@ -22,6 +22,7 @@ import {
   ensureAuthenticatedHousehold,
   fetchCurrentUser,
   fetchHomeDetail,
+  joinHome,
   listHomes,
   loginUser,
   registerUser,
@@ -47,17 +48,23 @@ export interface AuthContextValue {
   isAuthenticated: boolean;
   isHydrated: boolean;
   isBusy: boolean;
-  signIn: (usernameOrEmail: string, password: string) => Promise<void>;
-  registerAndOnboard: (params: {
+  signIn: (usernameOrEmail: string, password: string) => Promise<number>;
+  registerAccount: (params: {
     username: string;
     email: string;
     password: string;
-    householdName?: string;
-  }) => Promise<void>;
+  }) => Promise<number>;
   signInDemoSession: () => Promise<void>;
   signOut: () => Promise<void>;
   selectHome: (homeId: string) => Promise<void>;
-  createHousehold: (name: string) => Promise<HomeDetailResponse>;
+  createHousehold: (
+    name: string,
+    role?: HouseholdRole
+  ) => Promise<HomeDetailResponse>;
+  joinHousehold: (
+    homeId: string,
+    role?: HouseholdRole
+  ) => Promise<HomeDetailResponse>;
   inviteMember: (
     usernameOrEmail: string,
     role: HouseholdRole
@@ -80,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isBusy, setIsBusy] = useState<boolean>(false);
 
   const loadAuthenticatedState = useCallback(
-    async (preferredHomeId?: string | null) => {
+    async (preferredHomeId?: string | null): Promise<number> => {
       const [profile, homeList] = await Promise.all([
         fetchCurrentUser(),
         listHomes(),
@@ -102,6 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setActiveHomeIdState(null);
         setActiveHomeDetail(null);
       }
+      return homeList.length;
     },
     []
   );
@@ -144,12 +152,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadAuthenticatedState]);
 
   const signIn = useCallback(
-    async (usernameOrEmail: string, password: string) => {
+    async (usernameOrEmail: string, password: string): Promise<number> => {
       setIsBusy(true);
       try {
         const tokenRes = await loginUser(usernameOrEmail.trim(), password);
         await setUserPreference(AUTH_TOKEN_PREF_KEY, tokenRes.access_token);
-        await loadAuthenticatedState(activeHomeIdState);
+        return await loadAuthenticatedState(activeHomeIdState);
       } finally {
         setIsBusy(false);
       }
@@ -157,31 +165,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [activeHomeIdState, loadAuthenticatedState]
   );
 
-  const registerAndOnboard = useCallback(
+  const registerAccount = useCallback(
     async ({
       username,
       email,
       password,
-      householdName,
     }: {
       username: string;
       email: string;
       password: string;
-      householdName?: string;
-    }) => {
+    }): Promise<number> => {
       setIsBusy(true);
       try {
         await registerUser(username.trim(), email.trim().toLowerCase(), password);
         const tokenRes = await loginUser(email.trim().toLowerCase(), password);
         await setUserPreference(AUTH_TOKEN_PREF_KEY, tokenRes.access_token);
-
-        let createdHomeId: string | null = null;
-        const cleanHomeName = householdName?.trim();
-        if (cleanHomeName) {
-          const created = await createHome(cleanHomeName);
-          createdHomeId = created.id;
-        }
-        await loadAuthenticatedState(createdHomeId);
+        return await loadAuthenticatedState(null);
       } finally {
         setIsBusy(false);
       }
@@ -228,12 +227,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const createHousehold = useCallback(
-    async (name: string): Promise<HomeDetailResponse> => {
+    async (
+      name: string,
+      role: HouseholdRole = 'buyer'
+    ): Promise<HomeDetailResponse> => {
       setIsBusy(true);
       try {
-        const created = await createHome(name.trim());
+        const created = await createHome(name.trim(), role);
         await loadAuthenticatedState(created.id);
         return created;
+      } finally {
+        setIsBusy(false);
+      }
+    },
+    [loadAuthenticatedState]
+  );
+
+  const joinHousehold = useCallback(
+    async (
+      homeId: string,
+      role: HouseholdRole = 'consumer'
+    ): Promise<HomeDetailResponse> => {
+      setIsBusy(true);
+      try {
+        const joined = await joinHome(homeId.trim(), role);
+        await loadAuthenticatedState(joined.id);
+        return joined;
       } finally {
         setIsBusy(false);
       }
@@ -297,11 +316,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isHydrated,
       isBusy,
       signIn,
-      registerAndOnboard,
+      registerAccount,
       signInDemoSession,
       signOut,
       selectHome,
       createHousehold,
+      joinHousehold,
       inviteMember,
       removeMember,
       refreshHousehold,
@@ -314,11 +334,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isHydrated,
       isBusy,
       signIn,
-      registerAndOnboard,
+      registerAccount,
       signInDemoSession,
       signOut,
       selectHome,
       createHousehold,
+      joinHousehold,
       inviteMember,
       removeMember,
       refreshHousehold,

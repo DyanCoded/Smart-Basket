@@ -15,8 +15,10 @@ import { type Href, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -105,10 +107,39 @@ export default function HouseholdTabScreen() {
   const [newHomeName, setNewHomeName] = useState<string>('');
   const [inviteIdentifier, setInviteIdentifier] = useState<string>('');
   const [inviteRole, setInviteRole] = useState<HouseholdRole>('consumer');
+  const [copiedId, setCopiedId] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{
     kind: 'ok' | 'error';
     text: string;
   } | null>(null);
+
+  const handleCopyHomeId = async (homeIdToCopy: string) => {
+    try {
+      if (
+        Platform.OS === 'web' &&
+        typeof navigator !== 'undefined' &&
+        navigator.clipboard?.writeText
+      ) {
+        await navigator.clipboard.writeText(homeIdToCopy);
+      } else {
+        await Share.share({
+          message: homeIdToCopy,
+          title: 'SmartBasket Unique Home ID',
+        });
+      }
+      setCopiedId(true);
+      setFeedback({
+        kind: 'ok',
+        text: 'Unique Home ID ready to paste on another phone.',
+      });
+      setTimeout(() => setCopiedId(false), 3000);
+    } catch {
+      setFeedback({
+        kind: 'error',
+        text: 'Unable to copy Home ID automatically — long-press the ID to copy.',
+      });
+    }
+  };
 
   const cardShadow = getCardShadow(colorScheme);
   const currentRole: HouseholdRole | undefined = activeHomeDetail?.role;
@@ -464,7 +495,7 @@ export default function HouseholdTabScreen() {
             </Text>
           )}
 
-          {/* Inline Create Household */}
+          {/* Inline Create Household + Join by ID Shortcut */}
           <View style={styles.inlineFormRow}>
             <TextInput
               placeholder="New household name…"
@@ -498,10 +529,24 @@ export default function HouseholdTabScreen() {
               </Text>
             </Pressable>
           </View>
+
+          <Pressable
+            onPress={() => router.push('/(auth)/home-setup' as Href)}
+            style={[
+              styles.secondaryButton,
+              {
+                backgroundColor: colors.surfaceElevated,
+                borderColor: colors.border,
+              },
+            ]}>
+            <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>
+              Join Another Home by Unique ID
+            </Text>
+          </Pressable>
         </View>
       ) : null}
 
-      {/* 3. Household Members & Buyer/Consumer Role Management */}
+      {/* 3. Household Members & Unique Home ID Share Card */}
       {isAuthenticated && activeHomeDetail ? (
         <View
           style={[
@@ -513,14 +558,62 @@ export default function HouseholdTabScreen() {
             },
           ]}>
           <View style={styles.sectionHeader}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={[Typography.subtitle, { color: colors.text }]}>
                 Members · {activeHomeDetail.name}
               </Text>
               <Text style={[Typography.caption, { color: colors.textMuted }]}>
-                Buyers manage invites &amp; shopping; Consumers track pantry stock
+                Share this Unique Home ID so family phones can join directly
               </Text>
             </View>
+          </View>
+
+          {/* Unique Home ID + One-Tap Copy ID Button */}
+          <View
+            style={[
+              styles.homeIdBox,
+              {
+                backgroundColor: colors.surfaceElevated,
+                borderColor: colors.border,
+              },
+            ]}>
+            <View style={styles.homeIdTextBlock}>
+              <Text style={[Typography.badge, { color: colors.textMuted }]}>
+                UNIQUE HOME ID
+              </Text>
+              <Text
+                selectable
+                numberOfLines={1}
+                style={[styles.homeIdCode, { color: colors.text }]}>
+                {activeHomeDetail.id}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Copy Unique Home ID"
+              onPress={() => void handleCopyHomeId(activeHomeDetail.id)}
+              style={({ pressed }) => [
+                styles.copyIdButton,
+                {
+                  backgroundColor: copiedId
+                    ? colors.statusOkBg
+                    : colors.primaryMuted,
+                  opacity: pressed ? 0.78 : 1,
+                },
+              ]}>
+              <IconSymbol
+                name={copiedId ? 'checkmark' : 'doc.on.doc'}
+                size={15}
+                color={copiedId ? colors.statusOk : colors.primary}
+              />
+              <Text
+                style={[
+                  styles.copyIdText,
+                  { color: copiedId ? colors.statusOk : colors.primary },
+                ]}>
+                {copiedId ? 'Copied!' : 'Copy ID'}
+              </Text>
+            </Pressable>
           </View>
 
           <View style={styles.memberStack}>
@@ -1047,6 +1140,40 @@ const styles = StyleSheet.create({
   },
   inlineActionText: {
     fontSize: 13,
+    fontWeight: '800',
+  },
+  homeIdBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: Radii.md,
+    borderWidth: 1,
+  },
+  homeIdTextBlock: {
+    flex: 1,
+    gap: 3,
+  },
+  homeIdCode: {
+    fontSize: 12,
+    fontWeight: '700',
+    fontFamily: Platform.select({
+      ios: 'Menlo',
+      android: 'monospace',
+      default: 'monospace',
+    }),
+  },
+  copyIdButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: Radii.pill,
+  },
+  copyIdText: {
+    fontSize: 12,
     fontWeight: '800',
   },
   memberStack: {

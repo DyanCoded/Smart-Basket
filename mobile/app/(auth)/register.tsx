@@ -1,9 +1,9 @@
 /**
- * Warm Grocery Option B Registration & Household Onboarding Screen (#29).
+ * Warm Grocery Option B Registration Screen (Step 1 of 2-Step Onboarding).
  *
- * Registers the user (POST /api/v1/auth/register), authenticates them
- * (POST /api/v1/auth/login), and creates their initial Household as `buyer`
- * (POST /api/v1/homes) in a single warm onboarding flow.
+ * Collects only Username, Email, and Password, authenticates the new user,
+ * and routes directly to `/(auth)/home-setup` so they can Create a New Home
+ * or Join an Existing Home by Unique Home ID.
  */
 
 import { type Href, useRouter } from 'expo-router';
@@ -35,12 +35,11 @@ export default function RegisterScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, colorScheme } = useAppTheme();
-  const { registerAndOnboard, isBusy } = useAuth();
+  const { registerAccount, isBusy } = useAuth();
 
   const [username, setUsername] = useState<string>('');
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
-  const [householdName, setHouseholdName] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const cardShadow = getCardShadow(colorScheme);
@@ -57,13 +56,12 @@ export default function RegisterScreen() {
     }
 
     try {
-      await registerAndOnboard({
+      await registerAccount({
         username: username.trim(),
         email: email.trim(),
         password,
-        householdName: householdName.trim() || `${username.trim()}'s Home`,
       });
-      router.replace('/(tabs)/household' as Href);
+      router.replace('/(auth)/home-setup' as Href);
     } catch (err) {
       setErrorMessage(
         err instanceof Error
@@ -113,17 +111,17 @@ export default function RegisterScreen() {
               styles.brandBadge,
               { backgroundColor: colors.primaryMuted },
             ]}>
-            <IconSymbol name="house.fill" size={18} color={colors.primary} />
+            <IconSymbol name="person.fill" size={16} color={colors.primary} />
             <Text style={[Typography.badge, { color: colors.primary }]}>
-              HOUSEHOLD ONBOARDING
+              STEP 1 OF 2 · CREATE ACCOUNT
             </Text>
           </View>
           <Text style={[Typography.hero, { color: colors.text }]}>
-            Set up your kitchen
+            Create your account
           </Text>
           <Text style={[Typography.body, { color: colors.textSecondary }]}>
-            Create your account and household space. You&apos;ll start as a
-            Buyer so you can invite family members right away.
+            Next, you&apos;ll create a new household or join your family&apos;s
+            home using its unique Home ID.
           </Text>
         </View>
 
@@ -143,7 +141,7 @@ export default function RegisterScreen() {
             <TextInput
               autoCapitalize="none"
               autoCorrect={false}
-              placeholder="e.g. lerato_m"
+              placeholder="e.g. buyer1"
               placeholderTextColor={colors.textMuted}
               value={username}
               onChangeText={setUsername}
@@ -166,7 +164,7 @@ export default function RegisterScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
-              placeholder="e.g. lerato@example.co.za"
+              placeholder="e.g. buyer1@smartbasket.local"
               placeholderTextColor={colors.textMuted}
               value={email}
               onChangeText={setEmail}
@@ -191,26 +189,6 @@ export default function RegisterScreen() {
               placeholderTextColor={colors.textMuted}
               value={password}
               onChangeText={setPassword}
-              style={[
-                styles.input,
-                {
-                  backgroundColor: colors.surfaceElevated,
-                  borderColor: colors.border,
-                  color: colors.text,
-                },
-              ]}
-            />
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={[Typography.caption, { color: colors.textSecondary }]}>
-              Household Name
-            </Text>
-            <TextInput
-              placeholder="e.g. The Mokoena Kitchen"
-              placeholderTextColor={colors.textMuted}
-              value={householdName}
-              onChangeText={setHouseholdName}
               returnKeyType="done"
               onSubmitEditing={() => void handleSubmit()}
               style={[
@@ -253,7 +231,7 @@ export default function RegisterScreen() {
             ) : (
               <Text
                 style={[styles.primaryCtaText, { color: colors.primaryText }]}>
-                Create Account &amp; Home
+                Continue to Home Setup
               </Text>
             )}
           </Pressable>

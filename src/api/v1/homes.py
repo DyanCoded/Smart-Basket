@@ -19,6 +19,7 @@ from src.api.v1.schemas import (
     AddMemberRequest,
     HomeCreateRequest,
     HomeDetailResponse,
+    HomeJoinRequest,
     HomeMemberResponse,
     HomeResponse,
 )
@@ -101,6 +102,7 @@ def create_home(
             detail="Household name cannot be empty",
         )
 
+    assigned_role = payload.role
     home = Home(name=home_name)
     db.add(home)
     db.flush()
@@ -108,7 +110,7 @@ def create_home(
     membership = Membership(
         user_id=current_user.id,
         home_id=home.id,
-        role="buyer",
+        role=assigned_role,
     )
     db.add(membership)
     db.commit()
@@ -119,7 +121,7 @@ def create_home(
         user_id=current_user.id,
         username=current_user.username,
         email=current_user.email,
-        role="buyer",
+        role=assigned_role,
         joined_at=membership.created_at,
     )
 
@@ -127,8 +129,96 @@ def create_home(
         id=home.id,
         name=home.name,
         created_at=home.created_at,
-        role="buyer",
+        role=assigned_role,
         members=[initial_member],
+    )
+
+
+@router.post(
+    "/join",
+    response_model=HomeDetailResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Join an existing household by unique Home ID",
+    description=(
+        "Join an existing household using its unique UUID (Home.id) with "
+        "either 'consumer' or 'buyer' role, avoiding ambiguity across "
+        "households sharing the same display name."
+    ),
+    responses={
+        status.HTTP_201_CREATED: {
+            "model": HomeDetailResponse,
+            "description": "Joined household successfully.",
+        },
+        **STANDARD_400_RESPONSE,
+        **STANDARD_401_RESPONSE,
+        **STANDARD_404_RESPONSE,
+        **STANDARD_422_RESPONSE,
+        **COMMON_ERROR_RESPONSES,
+    },
+)
+def join_home(
+    payload: HomeJoinRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> HomeDetailResponse:
+    """Join an existing household by its unique UUID."""
+    home = db.scalar(
+        select(Home)
+        .where(Home.id == payload.home_id)
+        .options(selectinload(Home.memberships).selectinload(Membership.user))
+    )
+    if not home:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Household '{payload.home_id}' was not found",
+        )
+
+    existing = db.scalar(
+        select(Membership).where(
+            Membership.home_id == home.id,
+            Membership.user_id == current_user.id,
+        )
+    )
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You are already a member of this household",
+        )
+
+    new_membership = Membership(
+        user_id=current_user.id,
+        home_id=home.id,
+        role=payload.role,
+    )
+    db.add(new_membership)
+    db.commit()
+
+    refreshed_home = db.scalar(
+        select(Home)
+        .where(Home.id == home.id)
+        .options(selectinload(Home.memberships).selectinload(Membership.user))
+    )
+    assert refreshed_home is not None
+
+    members_list: list[HomeMemberResponse] = [
+        HomeMemberResponse(
+            id=m.id,
+            user_id=m.user.id,
+            username=m.user.username,
+            email=m.user.email,
+            role=m.role,
+            joined_at=m.created_at,
+        )
+        for m in refreshed_home.memberships
+        if m.user is not None
+    ]
+
+    return HomeDetailResponse(
+        id=refreshed_home.id,
+        name=refreshed_home.name,
+        created_at=refreshed_home.created_at,
+        role=payload.role,
+        members=members_list,
     )
 
 

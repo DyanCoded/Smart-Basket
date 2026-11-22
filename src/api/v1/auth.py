@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from src.api.v1.schemas import (
@@ -54,8 +54,8 @@ def register(
     existing_user = db.scalar(
         select(User).where(
             or_(
-                User.username == payload.username.strip(),
-                User.email == payload.email.strip().lower(),
+                func.lower(User.username) == payload.username.strip().lower(),
+                func.lower(User.email) == payload.email.strip().lower(),
             )
         )
     )
@@ -107,7 +107,11 @@ async def login(
     if "application/json" in content_type:
         try:
             body = await request.json()
-            username_or_email = body.get("username", "") or body.get("email", "")
+            username_or_email = (
+                body.get("username", "")
+                or body.get("email", "")
+                or body.get("identifier", "")
+            )
             password = body.get("password", "")
         except Exception:
             raise HTTPException(
@@ -135,11 +139,12 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    lookup = username_or_email.lower()
     user = db.scalar(
         select(User).where(
             or_(
-                User.username == username_or_email,
-                User.email == username_or_email.lower(),
+                func.lower(User.username) == lookup,
+                func.lower(User.email) == lookup,
             )
         )
     )

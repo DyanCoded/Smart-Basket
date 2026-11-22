@@ -15,6 +15,7 @@ import {
   HomeMemberDetail,
   HomeResponse,
   HouseholdBasketResponse,
+  HouseholdRole,
   PantryItemCreateRequest,
   PantryItemResponse,
   PantryItemUpdateRequest,
@@ -144,10 +145,25 @@ export async function listHomes(): Promise<HomeResponse[]> {
   return apiRequest<HomeResponse[]>('/homes');
 }
 
-export async function createHome(name: string): Promise<HomeDetailResponse> {
+export async function createHome(
+  name: string,
+  role: HouseholdRole = 'buyer'
+): Promise<HomeDetailResponse> {
   const home = await apiRequest<HomeDetailResponse>('/homes', {
     method: 'POST',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, role }),
+  });
+  setActiveHomeId(home.id);
+  return home;
+}
+
+export async function joinHome(
+  homeId: string,
+  role: HouseholdRole = 'consumer'
+): Promise<HomeDetailResponse> {
+  const home = await apiRequest<HomeDetailResponse>('/homes/join', {
+    method: 'POST',
+    body: JSON.stringify({ home_id: homeId.trim(), role }),
   });
   setActiveHomeId(home.id);
   return home;

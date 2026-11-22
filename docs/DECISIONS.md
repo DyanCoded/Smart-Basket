@@ -1,6 +1,7 @@
 # Architectural Decision Records (ADR)
 
 ## Log Summary
+- **2026-11-23:** Added Playwright headless-browser adapter (`src/scrapers/browser.py`) with `en-ZA` locale, XHR/Fetch JSON interception, rendered DOM extraction, and respectful 403/CAPTCHA hard-block halting; upgraded all 5 national supermarket scrapers to support `engine: Literal["http", "playwright"] = "playwright"` (while preserving offline HTTP fixture tests) and added `--engine` / `--headed` flags to `scripts/run_scrapers.py` (Issue #30, ADR-014).
 - **2026-11-22:** Refined household onboarding into a two-step flow (`register.tsx` -> `home-setup.tsx`), added `POST /api/v1/homes/join` (join by unique `Home.id` with `buyer`/`consumer` role), case-insensitive username/email login in `src/api/v1/auth.py`, one-tap `Copy ID` card in `mobile/app/(tabs)/household.tsx`, and catalog-preserving multi-phone mock user seeder (`scripts/seed_users.py --reset`).
 - **2026-11-21:** Created Warm Grocery Option B authentication & household onboarding screens (`mobile/app/(auth)/login.tsx`, `register.tsx`), added `AuthContext` with persisted JWT/household session management, and overhauled the Home tab (`mobile/app/(tabs)/household.tsx`) with household switching, inline household creation, Buyer/Consumer member roster + invite/remove RBAC controls, and instant Dark/Light/System theme settings (Issue #29).
 - **2026-11-21:** Added clean cross-chain product price comparison bottom sheet (`mobile/app/product/[id].tsx`) backed by `GET /api/v1/products/{id}/prices` (with offline fallback) showing current prices across all 5 national chains sorted lowest-to-highest with emerald "Best Price" and promo badges, keeping `price_history` strictly in backend analytics with zero charts in consumer mobile UI (Issue #28).
@@ -401,3 +402,31 @@ Phases 1 and 2 relied on deterministic fixture pricing (`scripts/seed.py`, `src/
 ### Consequences & Trade-offs
 - **Positive:** Clean separation of concerns; new retailer scrapers only need to subclass `BaseRetailerScraper` and yield `RawScrapedItem` objects; guaranteed `Decimal` precision and deduplicated catalog integrity.
 - **Negative / Mitigations:** `PlaceholderFixtureScraper` uses explicitly marked `PLACEHOLDER_` sample records until live storefront adapters are added; mitigated by clear `PLACEHOLDER_` annotations and dry-run isolation.
+
+---
+
+## ADR-014: Headless Playwright Browser Adapter for JS-Rendered Supermarket Catalogs (Issue #30)
+
+### Status
+**Accepted** (2026-11-23) *(Note: Issue #30 referenced ADR-013; numbered sequentially as ADR-014 following ADR-013 for Issue #19.)*
+
+### Context & Problem Statement
+South African national supermarket storefronts (Pick n Pay, Woolworths Food, SPAR, Checkers, Shoprite) increasingly render product search grids and promotional badges client-side via JavaScript SPAs and hydrate prices over internal XHR/Fetch calls. Raw `httpx` requests frequently receive empty HTML shells without product nodes, resulting in `PARTIAL (0 items)` runs during live catalog syncs. At the same time, CI test suites must remain completely offline, fast, and deterministic without launching a Chromium binary, and scraping must strictly respect retailer access controls without attempting to bypass WAFs or CAPTCHAs.
+
+### Decision & Technical Rationale
+- **Async Playwright Fetcher (`src/scrapers/browser.py`):**
+  - Implemented `PlaywrightFetcher` as an async context manager built on `playwright.async_api` (headless Chromium by default, optional `headless=False` via `--headed` for local debugging).
+  - Configured with realistic South African desktop/mobile user-agents, `en-ZA` locale, `Africa/Johannesburg` timezone, and configurable navigation/network-idle/selector wait timeouts.
+  - Supports **both** XHR/Fetch JSON response interception (matching retailer search API URL patterns) and rendered DOM HTML extraction (fed directly into existing retailer HTML parsers).
+  - Raises a clear `PlaywrightUnavailableError` with exact installation commands (`pip install playwright && playwright install chromium`) when Playwright or Chromium is not installed.
+  - **Respectful Hard-Block Policy:** `is_hard_block_response` detects HTTP `403`/`451` and WAF/CAPTCHA gates (Cloudflare Turnstile, reCAPTCHA, hCaptcha, Incapsula). When detected, scrapers log a structured warning and return gracefully with zero circumvention attempts.
+- **Dual-Engine Retailer Adapters (`src/scrapers/base.py` & `src/scrapers/retailers/`):**
+  - Upgraded `BaseRetailerScraper` and all 5 chain scrapers (`CheckersScraper`, `ShopriteScraper`, `PickNPayScraper`, `WoolworthsScraper`, `SparScraper`) to support `engine: Literal["http", "playwright"] = "playwright"`.
+  - Live instantiations default to `"playwright"` and navigate directly to each chain's live storefront search URL (`pnp.co.za/search/<q>`, `woolworths.co.za/cat?Ntt=<q>`, `spar.co.za/?q=<q>`, `checkers.co.za/search/all?q=<q>`, `shoprite.co.za/search/all?q=<q>`).
+  - Offline unit tests injecting an `httpx.MockTransport` automatically resolve to `"http"` unless `engine` is explicitly passed, preserving 100% offline CI execution without launching Chromium.
+- **CLI Controls (`scripts/run_scrapers.py`):**
+  - Added `--engine {playwright,http}` (default: `playwright`) and `--headed` (for local visual debugging).
+
+### Consequences & Trade-offs
+- **Positive:** Handles both client-side SPA catalogs and internal XHR search JSON responses cleanly; preserves all existing HTML/JSON parsers, `Decimal` precision, and fast offline CI fixtures; strictly adheres to ethical/respectful scraping guardrails.
+- **Negative / Mitigations:** Live Playwright runs require Chromium installed locally (`playwright install chromium`) and consume more memory than raw `httpx`; mitigated by lazy browser startup, explicit teardown in `async with` context managers, and retaining `--engine http` and `--source-dir` modes for lightweight environments.

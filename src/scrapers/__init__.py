@@ -1,6 +1,16 @@
 """Phase 3 live data scraper, tidy-data normalizer, and catalog publisher package."""
 
-from src.scrapers.base import BaseRetailerScraper, PlaceholderFixtureScraper
+from src.scrapers.base import (
+    BaseRetailerScraper,
+    PlaceholderFixtureScraper,
+    ScraperEngine,
+)
+from src.scrapers.browser import (
+    PlaywrightFetcher,
+    PlaywrightPageResult,
+    PlaywrightUnavailableError,
+    is_hard_block_response,
+)
 from src.scrapers.feed_loader import (
     FeedSnapshotScraper,
     load_feed_items_from_dir,
@@ -39,6 +49,11 @@ from src.scrapers.retailers import (
 __all__ = [
     "BaseRetailerScraper",
     "PlaceholderFixtureScraper",
+    "ScraperEngine",
+    "PlaywrightFetcher",
+    "PlaywrightPageResult",
+    "PlaywrightUnavailableError",
+    "is_hard_block_response",
     "FeedSnapshotScraper",
     "load_feed_items_from_file",
     "load_feed_items_from_dir",

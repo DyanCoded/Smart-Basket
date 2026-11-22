@@ -14,11 +14,12 @@ import logging
 import re
 from html.parser import HTMLParser
 from typing import Any, Optional
-from urllib.parse import urljoin
+from urllib.parse import quote_plus, urljoin
 
 import httpx
 
 from src.scrapers.base import BaseRetailerScraper
+from src.scrapers.browser import PlaywrightUnavailableError
 from src.scrapers.models import RawScrapedItem
 from src.scrapers.retailers.shoprite_group import (
     DEFAULT_CORE_STAPLES,
@@ -572,6 +573,12 @@ class WoolworthsScraper(BaseRetailerScraper):
     retailer_slug = "woolworths-food"
     base_url = "https://www.woolworths.co.za"
     search_path = "/server/searchCategory"
+    playwright_wait_selector = ".product-list__item, .product-card, .product-tile"
+    playwright_json_patterns: tuple[str, ...] = (
+        "searchCategory",
+        "format=json",
+        "/server/",
+    )
 
     def __init__(self, *, max_pages: int = 1, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -581,9 +588,75 @@ class WoolworthsScraper(BaseRetailerScraper):
     def default_queries(self) -> list[str]:
         return [term for terms in DEFAULT_CORE_STAPLES.values() for term in terms]
 
+    def build_storefront_search_url(self, term: str) -> str:
+        """Build live Woolworths Food storefront search URL for Playwright."""
+        return f"{self.base_url}/cat?Ntt={quote_plus(term)}"
+
+    async def _scrape_via_playwright(self, terms: list[str]) -> list[RawScrapedItem]:
+        fetcher = self.get_browser_fetcher()
+        collected: list[RawScrapedItem] = []
+        seen_keys: set[str] = set()
+
+        for term in terms:
+            await self._throttle()
+            default_cat = infer_category_slug(query_term=term)
+            url = self.build_storefront_search_url(term)
+            try:
+                result = await fetcher.fetch_page(
+                    url,
+                    wait_selector=self.playwright_wait_selector,
+                    json_url_patterns=self.playwright_json_patterns,
+                )
+            except PlaywrightUnavailableError as exc:
+                logger.warning("[%s] %s", self.retailer_slug, exc)
+                break
+
+            if result.blocked:
+                logger.warning(
+                    "[%s] Blocked on %s (%s); halting respectfully without bypass.",
+                    self.retailer_slug,
+                    url,
+                    result.block_reason,
+                )
+                break
+
+            page_items: list[RawScrapedItem] = []
+            for _resp_url, payload in result.intercepted_json:
+                if isinstance(payload, dict):
+                    page_items.extend(
+                        parse_woolworths_json(
+                            payload,
+                            base_url=self.base_url,
+                            default_category_slug=default_cat,
+                            query_term=term,
+                        )
+                    )
+            if not page_items and result.html:
+                page_items = parse_woolworths_html(
+                    result.html,
+                    base_url=self.base_url,
+                    default_category_slug=default_cat,
+                    query_term=term,
+                )
+
+            for item in page_items:
+                dedup_key = (
+                    f"ean:{item.barcode}"
+                    if item.barcode
+                    else f"name:{item.raw_name.lower()}"
+                )
+                if dedup_key in seen_keys:
+                    continue
+                seen_keys.add(dedup_key)
+                collected.append(item)
+
+        return collected
+
     async def scrape_catalog(self, query_terms: list[str]) -> list[RawScrapedItem]:
         """Query Woolworths Food catalog search and extract RawScrapedItem list."""
         terms = [t.strip() for t in query_terms if t.strip()] or self.default_queries
+        if self.engine == "playwright":
+            return await self._scrape_via_playwright(terms)
         collected: list[RawScrapedItem] = []
         seen_keys: set[str] = set()
 

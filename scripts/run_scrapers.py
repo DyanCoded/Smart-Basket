@@ -3,6 +3,8 @@
 Usage:
     python scripts/run_scrapers.py --retailer all --dry-run
     python scripts/run_scrapers.py --retailer checkers --queries "milk,bread,eggs"
+    python scripts/run_scrapers.py --retailer all --engine playwright --headed
+    python scripts/run_scrapers.py --retailer all --engine http --dry-run
     python scripts/run_scrapers.py --retailer all --force-history
     python scripts/run_scrapers.py --retailer all --source-dir tests/fixtures/feeds
     python scripts/run_scrapers.py --retailer all --summary-json scraper_summary.json
@@ -27,7 +29,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from sqlalchemy.orm import Session  # noqa: E402
 
 from src.core.database import SessionLocal  # noqa: E402
-from src.scrapers.base import BaseRetailerScraper  # noqa: E402
+from src.scrapers.base import BaseRetailerScraper, ScraperEngine  # noqa: E402
 from src.scrapers.feed_loader import (  # noqa: E402
     FeedSnapshotScraper,
     load_feed_items_from_dir,
@@ -62,6 +64,21 @@ SCRAPER_REGISTRY: dict[str, Callable[[], BaseRetailerScraper]] = {
     "woolworths-food": WoolworthsScraper,
     "spar": SparScraper,
 }
+
+
+def build_live_registry(
+    retailer_slugs: list[str],
+    *,
+    engine: ScraperEngine = "playwright",
+    headed: bool = False,
+) -> dict[str, Callable[[], BaseRetailerScraper]]:
+    """Build a live scraper registry configured with engine & headed options."""
+    registry: dict[str, Callable[[], BaseRetailerScraper]] = {}
+    for slug in retailer_slugs:
+        cls = SCRAPER_REGISTRY.get(slug)
+        if cls is not None:
+            registry[slug] = lambda c=cls, e=engine, h=headed: c(engine=e, headed=h)
+    return registry
 
 
 def build_feed_registry(
@@ -116,6 +133,8 @@ async def run_pipeline(
     *,
     dry_run: bool = False,
     force_history: bool = False,
+    engine: ScraperEngine = "playwright",
+    headed: bool = False,
     session: Optional[Session] = None,
     scraper_registry: Optional[dict[str, Callable[[], BaseRetailerScraper]]] = None,
     source_dir: Optional[Path] = None,
@@ -135,6 +154,12 @@ async def run_pipeline(
     active_registry = scraper_registry
     if active_registry is None and source_dir is not None:
         active_registry = build_feed_registry(source_dir, retailer_slugs)
+    elif active_registry is None:
+        active_registry = build_live_registry(
+            retailer_slugs,
+            engine=engine,
+            headed=headed,
+        )
 
     try:
         publisher = CatalogPublisher(db_session)
@@ -244,6 +269,23 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--engine",
+        choices=["playwright", "http"],
+        default="playwright",
+        help=(
+            "Live scraping engine: 'playwright' (headless Chromium, default) "
+            "or 'http' (direct httpx requests)."
+        ),
+    )
+    parser.add_argument(
+        "--headed",
+        action="store_true",
+        help=(
+            "Launch Chromium in visible (non-headless) mode for local debugging "
+            "when --engine=playwright."
+        ),
+    )
+    parser.add_argument(
         "--source-dir",
         default=None,
         help=(
@@ -300,7 +342,13 @@ def main(
         query_terms = ["milk", "bread", "eggs"]
 
     mode_label = "DRY-RUN" if args.dry_run else "LIVE PUBLISH"
-    source_label = f"FEED ({source_path})" if source_path else "LIVE HTTP"
+    if source_path:
+        source_label = f"FEED ({source_path})"
+    elif args.engine == "playwright":
+        browser_mode = "headed" if args.headed else "headless"
+        source_label = f"LIVE PLAYWRIGHT ({browser_mode})"
+    else:
+        source_label = "LIVE HTTP"
     print(f"SmartBasket Scraper Pipeline ({mode_label} | {source_label})")
     print(f"Retailers : {', '.join(target_retailers)}")
     print(f"Queries   : {', '.join(query_terms) or '(all)'}")
@@ -312,6 +360,8 @@ def main(
             query_terms,
             dry_run=args.dry_run,
             force_history=args.force_history,
+            engine=args.engine,
+            headed=args.headed,
             session=session,
             scraper_registry=scraper_registry,
             source_dir=source_path,

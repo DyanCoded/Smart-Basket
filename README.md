@@ -148,6 +148,9 @@ Smart-Basket/
    # Install runtime, development, and testing dependencies:
    pip install -r requirements.txt
    pip install -r requirements-dev.txt
+
+   # (Optional) Install headless Chromium for live Playwright supermarket scraping:
+   playwright install chromium
    ```
 
 3. **Configure environment variables:**

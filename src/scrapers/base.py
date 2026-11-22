@@ -11,11 +11,14 @@ import asyncio
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 import httpx
 
+from src.scrapers.browser import PlaywrightFetcher
 from src.scrapers.models import RawScrapedItem
+
+ScraperEngine = Literal["http", "playwright"]
 
 logger = logging.getLogger(__name__)
 
@@ -35,17 +38,28 @@ class BaseRetailerScraper(ABC):
     def __init__(
         self,
         *,
+        engine: Optional[ScraperEngine] = None,
+        headed: bool = False,
         min_delay_seconds: float = 1.0,
         max_retries: int = 3,
         backoff_base_seconds: float = 0.5,
         timeout_seconds: float = 15.0,
         headers: Optional[dict[str, str]] = None,
         transport: Optional[httpx.AsyncBaseTransport] = None,
+        browser_fetcher: Optional[PlaywrightFetcher] = None,
     ) -> None:
         if not self.retailer_slug:
             raise ValueError(
                 f"{self.__class__.__name__} must define a non-empty 'retailer_slug'"
             )
+        # Default to Playwright for live runs; keep offline MockTransport tests on HTTP
+        if engine is not None:
+            self.engine: ScraperEngine = engine
+        elif transport is not None:
+            self.engine = "http"
+        else:
+            self.engine = "playwright"
+        self.headed = headed
         self.min_delay_seconds = max(0.0, min_delay_seconds)
         self.max_retries = max(1, max_retries)
         self.backoff_base_seconds = max(0.0, backoff_base_seconds)
@@ -58,7 +72,19 @@ class BaseRetailerScraper(ABC):
             **(headers or {}),
         }
         self._client: Optional[httpx.AsyncClient] = None
+        self._browser_fetcher: Optional[PlaywrightFetcher] = browser_fetcher
+        self._owns_browser_fetcher: bool = browser_fetcher is None
         self._last_request_ts: float = 0.0
+
+    def get_browser_fetcher(self) -> PlaywrightFetcher:
+        """Return active PlaywrightFetcher instance, creating lazily if needed."""
+        if self._browser_fetcher is None:
+            self._browser_fetcher = PlaywrightFetcher(
+                headless=not self.headed,
+                navigation_timeout_ms=int(self.timeout_seconds * 1000) + 10000,
+            )
+            self._owns_browser_fetcher = True
+        return self._browser_fetcher
 
     @property
     def client(self) -> httpx.AsyncClient:
@@ -74,17 +100,21 @@ class BaseRetailerScraper(ABC):
         return self._client
 
     async def __aenter__(self) -> BaseRetailerScraper:
-        _ = self.client
+        if self.engine == "http":
+            _ = self.client
         return self
 
     async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         await self.close()
 
     async def close(self) -> None:
-        """Close the underlying async httpx session cleanly."""
+        """Close underlying async httpx and Playwright sessions cleanly."""
         if self._client is not None and not self._client.is_closed:
             await self._client.aclose()
         self._client = None
+        if self._browser_fetcher is not None and self._owns_browser_fetcher:
+            await self._browser_fetcher.close()
+            self._browser_fetcher = None
 
     async def _throttle(self) -> None:
         """Enforce polite minimum delay between consecutive outbound requests."""

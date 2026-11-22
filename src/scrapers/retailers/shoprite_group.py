@@ -14,6 +14,7 @@ import html as html_lib
 import json
 import logging
 import re
+from decimal import Decimal, InvalidOperation
 from html.parser import HTMLParser
 from typing import Any, Optional
 from urllib.parse import quote_plus, urljoin
@@ -105,14 +106,17 @@ _RAND_FRAGMENT_RE = re.compile(
 )
 _PURE_DIGITS_RE = re.compile(r"^\d{8,14}$")
 _WHITESPACE_RE = re.compile(r"\s+")
+# Generic SAP / Sixty60 UOM codes that are not physical pack sizes
+_GENERIC_UOM_CODES = {"ea", "each", "pk", "pk1", "pack", "cs", "case", "unit", "units"}
 
 
-def _clean_text(value: Optional[str]) -> str:
-    if not value:
+def _clean_text(value: Any) -> str:
+    if value is None or isinstance(value, (bool, dict, list)):
         return ""
-    return _WHITESPACE_RE.sub(
-        " ", html_lib.unescape(value).replace("\xa0", " ")
-    ).strip()
+    text = str(value)
+    if not text:
+        return ""
+    return _WHITESPACE_RE.sub(" ", html_lib.unescape(text).replace("\xa0", " ")).strip()
 
 
 def _extract_price_fragment(raw_text: Optional[str]) -> Optional[str]:
@@ -456,6 +460,34 @@ def _extract_json_price_field(value: Any) -> Optional[str]:
     return _extract_price_fragment(str(value))
 
 
+def _cents_to_zar_str(amount: Any, factor: Any = 100) -> Optional[str]:
+    """Convert integer minor-unit price (e.g. 2199 / 100) to exact 'R 21.99'."""
+    if amount is None or isinstance(amount, bool):
+        return None
+    try:
+        dec_amount = Decimal(str(amount))
+        dec_factor = Decimal(str(factor or 100))
+        if dec_amount <= 0 or dec_factor <= 0:
+            return None
+        rands = (dec_amount / dec_factor).quantize(Decimal("0.01"))
+        return f"R {rands:.2f}"
+    except (InvalidOperation, ValueError, ZeroDivisionError):
+        return None
+
+
+def _numeric_to_zar_str(value: Any) -> Optional[str]:
+    """Convert numeric ZAR amount (e.g. 97.99) to exact 'R 97.99'."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        dec = Decimal(str(value)).quantize(Decimal("0.01"))
+        if dec <= 0:
+            return None
+        return f"R {dec:.2f}"
+    except (InvalidOperation, ValueError):
+        return None
+
+
 def parse_search_json(
     payload: dict[str, Any],
     *,
@@ -464,7 +496,7 @@ def parse_search_json(
     default_category_slug: Optional[str] = None,
     query_term: Optional[str] = None,
 ) -> list[RawScrapedItem]:
-    """Parse Shoprite Group SAP Commerce OCC / BFF JSON search payloads."""
+    """Parse Shoprite Group SAP Commerce OCC & Sixty60 BFF JSON search payloads."""
     raw_entries = (
         payload.get("products") or payload.get("results") or payload.get("items") or []
     )
@@ -477,37 +509,73 @@ def parse_search_json(
         if not isinstance(entry, dict):
             continue
 
-        raw_name = _clean_text(entry.get("name") or entry.get("title"))
+        raw_name = _clean_text(
+            entry.get("displayName") or entry.get("name") or entry.get("title")
+        )
         if not raw_name:
             continue
 
         brand = _clean_text(entry.get("brand") or entry.get("manufacturer")) or None
 
+        ean_candidate = entry.get("ean") or entry.get("barcode") or entry.get("gtin")
+        if not ean_candidate and isinstance(entry.get("barcodes"), list):
+            for bc in entry["barcodes"]:
+                if bc and str(bc).strip():
+                    ean_candidate = bc
+                    break
+
         barcode = _normalize_barcode_candidate(
-            ean=(entry.get("ean") or entry.get("barcode") or entry.get("gtin")),
+            ean=ean_candidate,
             sku=entry.get("code") or entry.get("sku") or entry.get("id"),
         )
 
+        raw_unit_candidate = _clean_text(
+            entry.get("packSize")
+            or entry.get("unitOfMeasure")
+            or entry.get("unit")
+            or entry.get("size")
+        )
         raw_unit = (
-            _clean_text(
-                entry.get("packSize")
-                or entry.get("unitOfMeasure")
-                or entry.get("unit")
-                or entry.get("size")
-            )
-            or None
+            raw_unit_candidate
+            if raw_unit_candidate
+            and raw_unit_candidate.lower() not in _GENERIC_UOM_CODES
+            else None
         )
 
-        regular_price = _extract_json_price_field(
-            entry.get("regularPrice") or entry.get("wasPrice") or entry.get("price")
-        )
-        promo_price = _extract_json_price_field(
-            entry.get("xtraSavingsPrice")
-            or entry.get("promotionalPrice")
-            or entry.get("promoPrice")
-            or entry.get("specialPrice")
-            or entry.get("multiBuyPromo")
-        )
+        # Sixty60 BFF format (priceWithoutDecimal / oldPrice / discountedPrice)
+        regular_price: Optional[str] = None
+        promo_price: Optional[str] = None
+
+        if entry.get("priceWithoutDecimal") is not None:
+            factor = entry.get("priceFactor") or 100
+            current_zar = _cents_to_zar_str(entry.get("priceWithoutDecimal"), factor)
+            old_zar = _cents_to_zar_str(entry.get("oldPrice"), factor)
+            if old_zar and current_zar and old_zar != current_zar:
+                regular_price = old_zar
+                promo_price = current_zar
+            else:
+                regular_price = current_zar or old_zar
+
+        if regular_price is None:
+            regular_price = _extract_json_price_field(
+                entry.get("regularPrice") or entry.get("wasPrice") or entry.get("price")
+            )
+
+        if promo_price is None:
+            promo_price = _extract_json_price_field(
+                entry.get("xtraSavingsPrice")
+                or entry.get("promotionalPrice")
+                or entry.get("promoPrice")
+                or entry.get("specialPrice")
+                or entry.get("multiBuyPromo")
+            )
+
+        if promo_price is None and entry.get("discountedPrice") is not None:
+            disc_zar = _numeric_to_zar_str(entry.get("discountedPrice"))
+            base_zar = _numeric_to_zar_str(entry.get("price"))
+            if disc_zar and base_zar and disc_zar != base_zar:
+                regular_price = base_zar
+                promo_price = disc_zar
 
         if not regular_price and not promo_price:
             continue
@@ -517,11 +585,13 @@ def parse_search_json(
             promo_price
             or entry.get("isPromotional")
             or entry.get("onPromotion")
+            or entry.get("isOnPromotion")
             or entry.get("xtraSavings")
         )
 
         raw_category = (
-            entry.get("category")
+            entry.get("displayCategories")
+            or entry.get("category")
             or entry.get("department")
             or entry.get("categoryPath")
         )
@@ -537,6 +607,8 @@ def parse_search_json(
         )
 
         raw_url = entry.get("url") or entry.get("productUrl")
+        if not raw_url and entry.get("id"):
+            raw_url = f"/product/{entry['id']}"
         source_url = urljoin(base_url, str(raw_url)) if raw_url else None
 
         items.append(
@@ -561,8 +633,16 @@ class ShopriteGroupBaseScraper(BaseRetailerScraper):
     """Shared base scraper for Shoprite Group chains (Checkers & Shoprite)."""
 
     search_path: str = "/search/all"
-    playwright_wait_selector: str = ".item-product"
-    playwright_json_patterns: tuple[str, ...] = ("/search", "/occ/", "products")
+    playwright_search_path: str = "/search"
+    playwright_wait_selector: str = (
+        "a[href*='/product/'], [data-testid*='product'], .item-product"
+    )
+    playwright_json_patterns: tuple[str, ...] = (
+        "get-products-filter",
+        "/search",
+        "/occ/",
+        "products",
+    )
 
     def __init__(self, *, max_pages: int = 1, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -574,8 +654,8 @@ class ShopriteGroupBaseScraper(BaseRetailerScraper):
         return [term for terms in DEFAULT_CORE_STAPLES.values() for term in terms]
 
     def build_storefront_search_url(self, term: str) -> str:
-        """Build live storefront search URL for Playwright browser navigation."""
-        return f"{self.base_url}{self.search_path}?q={quote_plus(term)}"
+        """Build live Sixty60 storefront search URL for Playwright navigation."""
+        return f"{self.base_url}{self.playwright_search_path}?Search={quote_plus(term)}"
 
     async def _scrape_via_playwright(self, terms: list[str]) -> list[RawScrapedItem]:
         fetcher = self.get_browser_fetcher()

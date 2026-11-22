@@ -66,12 +66,13 @@ _PURE_EAN13_RE = re.compile(r"^\d{13}$")
 _WHITESPACE_RE = re.compile(r"\s+")
 
 
-def _clean_text(value: Optional[str]) -> str:
-    if not value:
+def _clean_text(value: Any) -> str:
+    if value is None or isinstance(value, (bool, dict, list)):
         return ""
-    return _WHITESPACE_RE.sub(
-        " ", html_lib.unescape(value).replace("\xa0", " ")
-    ).strip()
+    text = str(value)
+    if not text:
+        return ""
+    return _WHITESPACE_RE.sub(" ", html_lib.unescape(text).replace("\xa0", " ")).strip()
 
 
 def _extract_spar_price(
@@ -612,6 +613,15 @@ class SparScraper(BaseRetailerScraper):
                     continue
                 seen_keys.add(dedup_key)
                 collected.append(item)
+
+        if not collected:
+            logger.warning(
+                "[%s] No web catalog products found on %s (SPAR South Africa "
+                "operates online shopping via the SPAR2U mobile app and regional "
+                "PDF leaflets; use --source-dir feed snapshots for SPAR pricing).",
+                self.retailer_slug,
+                self.base_url,
+            )
 
         return collected
 

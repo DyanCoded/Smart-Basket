@@ -293,15 +293,18 @@ async def test_playwright_fetcher_fetch_page_intercepts_json_and_reads_dom() -> 
     ("scraper_cls", "expected_url"),
     [
         (PickNPayScraper, "https://www.pnp.co.za/search/full%20cream%20milk"),
-        (WoolworthsScraper, "https://www.woolworths.co.za/cat?Ntt=full+cream+milk"),
+        (
+            WoolworthsScraper,
+            "https://www.woolworths.co.za/browse?searchterm=full+cream+milk",
+        ),
         (SparScraper, "https://www.spar.co.za/?q=full+cream+milk"),
         (
             CheckersScraper,
-            "https://www.checkers.co.za/search/all?q=full+cream+milk",
+            "https://www.checkers.co.za/search?Search=full+cream+milk",
         ),
         (
             ShopriteScraper,
-            "https://www.shoprite.co.za/search/all?q=full+cream+milk",
+            "https://www.shoprite.co.za/search?Search=full+cream+milk",
         ),
     ],
 )
@@ -377,14 +380,14 @@ async def test_checkers_and_shoprite_playwright_parse_rendered_dom() -> None:
         items = await scraper.scrape_catalog(["milk"])
 
     assert len(items) >= 3
-    assert fetcher.calls[0]["url"] == "https://www.checkers.co.za/search/all?q=milk"
+    assert fetcher.calls[0]["url"] == "https://www.checkers.co.za/search?Search=milk"
 
     shoprite_html = (FIXTURES_DIR / "shoprite_search_staples.html").read_text(
         encoding="utf-8"
     )
     sr_fetcher = _FakePlaywrightFetcher(
         PlaywrightPageResult(
-            url="https://www.shoprite.co.za/search/all?q=bread",
+            url="https://www.shoprite.co.za/search?Search=bread",
             status_code=200,
             html=shoprite_html,
             intercepted_json=[],
@@ -398,7 +401,142 @@ async def test_checkers_and_shoprite_playwright_parse_rendered_dom() -> None:
         sr_items = await scraper.scrape_catalog(["bread"])
 
     assert len(sr_items) >= 2
-    assert sr_fetcher.calls[0]["url"] == "https://www.shoprite.co.za/search/all?q=bread"
+    assert (
+        sr_fetcher.calls[0]["url"] == "https://www.shoprite.co.za/search?Search=bread"
+    )
+
+
+@pytest.mark.asyncio
+async def test_sixty60_and_woolworths_cnstrc_live_json_formats() -> None:
+    """Verify live Sixty60 get-products-filter and Woolworths Constructor.io schemas."""
+    sixty60_payload = {
+        "totalCount": 2,
+        "products": [
+            {
+                "id": "5d3af672f434cf84207388ca",
+                "name": "Clover Full Cream Milk 2L",
+                "displayName": "Clover Full Cream Milk 2L",
+                "unitOfMeasure": "EA",
+                "priceFactor": 100,
+                "priceWithoutDecimal": 3499,
+                "oldPrice": 3999,
+                "price": 39.99,
+                "discountedPrice": 34.99,
+                "isOnPromotion": True,
+                "brand": "Clover",
+                "barcodes": ["6001299015274"],
+                "displayCategories": ["Milk, Dairy & Eggs", "Milk"],
+            },
+            {
+                "id": "5d3af63cf434cf8420737e3e",
+                "name": "Checkers Housebrand Full Cream Milk 6 x 1L",
+                "displayName": "Checkers Housebrand Full Cream Milk 6 x 1L",
+                "unitOfMeasure": "PK1",
+                "priceFactor": 100,
+                "priceWithoutDecimal": 9799,
+                "oldPrice": 9799,
+                "isOnPromotion": False,
+                "brand": "Checkers Housebrand",
+                "barcodes": ["6001001271059"],
+                "displayCategories": ["Food Cupboard", "Long Life Milk"],
+            },
+        ],
+    }
+    checkers_fetcher = _FakePlaywrightFetcher(
+        PlaywrightPageResult(
+            url="https://www.checkers.co.za/search?Search=milk",
+            status_code=200,
+            html="<html></html>",
+            intercepted_json=[
+                (
+                    "https://www.checkers.co.za/api/catalogue/get-products-filter",
+                    sixty60_payload,
+                )
+            ],
+        )
+    )
+    async with CheckersScraper(
+        engine="playwright",
+        min_delay_seconds=0.0,
+        browser_fetcher=checkers_fetcher,
+    ) as scraper:
+        c_items = await scraper.scrape_catalog(["milk"])
+
+    assert len(c_items) == 2
+    assert c_items[0].raw_price == "R 39.99"
+    assert c_items[0].raw_promo_price == "R 34.99"
+    norm_0 = normalize_scraped_item(c_items[0])
+    assert norm_0.barcode == "6001299015274"
+    assert str(norm_0.price) == "34.99"
+    assert norm_0.is_promotional is True
+    assert norm_0.unit_type == "L"
+    assert str(norm_0.unit_size) == "2.00"
+    norm_1 = normalize_scraped_item(c_items[1])
+    assert norm_1.unit_type == "L"
+    assert str(norm_1.unit_size) == "6.00"
+
+    cnstrc_payload = {
+        "response": {
+            "results": [
+                {
+                    "value": "Fresh Full Cream Ayrshire Milk 2 L",
+                    "data": {
+                        "id": "6001009001733",
+                        "brand": "Woolies Brands",
+                        "p10": 42.99,
+                        "p10_wp": 45.99,
+                        "prodtype": "Food",
+                        "subtype": "foods",
+                        "badges": {"SAVE": "/images/save.png"},
+                        "url": (
+                            "prod/Food/Milk-Dairy-Eggs/Milk/"
+                            "Ayrshire-2-L/_/A-6001009001733"
+                        ),
+                    },
+                },
+                {
+                    "value": "Milk White Cotton T-Shirt",
+                    "data": {
+                        "id": "99999999",
+                        "brand": "RE:",
+                        "p10": 199.00,
+                        "p10_wp": 0,
+                        "prodtype": "Clothing",
+                        "subtype": "apparel",
+                        "url": "prod/Clothing/T-Shirts/Milk-Tee",
+                    },
+                },
+            ]
+        }
+    }
+    ww_fetcher = _FakePlaywrightFetcher(
+        PlaywrightPageResult(
+            url="https://www.woolworths.co.za/browse?searchterm=milk",
+            status_code=200,
+            html="<html></html>",
+            intercepted_json=[
+                ("https://wpkmgeuco-zone.cnstrc.com/v1/search/milk", cnstrc_payload)
+            ],
+        )
+    )
+    async with WoolworthsScraper(
+        engine="playwright",
+        min_delay_seconds=0.0,
+        browser_fetcher=ww_fetcher,
+    ) as scraper:
+        ww_items = await scraper.scrape_catalog(["milk"])
+
+    # Clothing result filtered out; Food result parsed with ZA p10/p10_wp prices
+    assert len(ww_items) == 1
+    assert ww_items[0].raw_price == "R 45.99"
+    assert ww_items[0].raw_promo_price == "R 42.99"
+    ww_norm = normalize_scraped_item(ww_items[0])
+    assert ww_norm.brand == "Woolworths"
+    assert ww_norm.barcode == "6001009001733"
+    assert str(ww_norm.price) == "42.99"
+    assert ww_norm.is_promotional is True
+    assert ww_norm.unit_type == "L"
+    assert str(ww_norm.unit_size) == "2.00"
 
 
 @pytest.mark.asyncio
@@ -427,7 +565,10 @@ async def test_woolworths_and_spar_playwright_parse_json_and_dom() -> None:
         ww_items = await scraper.scrape_catalog(["milk"])
 
     assert len(ww_items) >= 3
-    assert ww_fetcher.calls[0]["url"] == "https://www.woolworths.co.za/cat?Ntt=milk"
+    assert (
+        ww_fetcher.calls[0]["url"]
+        == "https://www.woolworths.co.za/browse?searchterm=milk"
+    )
 
     spar_html = (FIXTURES_DIR / "spar_search_staples.html").read_text(encoding="utf-8")
     spar_fetcher = _FakePlaywrightFetcher(
@@ -493,6 +634,30 @@ async def test_playwright_unavailable_error_halts_gracefully(
     assert any(
         "playwright install chromium" in rec.message.lower() for rec in caplog.records
     )
+
+
+@pytest.mark.asyncio
+async def test_spar_playwright_logs_spar2u_notice_when_empty(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    empty_fetcher = _FakePlaywrightFetcher(
+        PlaywrightPageResult(
+            url="https://www.spar.co.za/?q=milk",
+            status_code=200,
+            html="<html><body>SPAR Corporate Home</body></html>",
+            intercepted_json=[],
+        )
+    )
+    with caplog.at_level(logging.WARNING):
+        async with SparScraper(
+            engine="playwright",
+            min_delay_seconds=0.0,
+            browser_fetcher=empty_fetcher,
+        ) as scraper:
+            items = await scraper.scrape_catalog(["milk"])
+
+    assert items == []
+    assert any("spar2u" in rec.message.lower() for rec in caplog.records)
 
 
 # ---------------------------------------------------------------------------

@@ -12,6 +12,7 @@ import html as html_lib
 import json
 import logging
 import re
+from decimal import Decimal, InvalidOperation
 from html.parser import HTMLParser
 from typing import Any, Optional
 from urllib.parse import quote_plus, urljoin
@@ -65,12 +66,13 @@ _PURE_EAN13_RE = re.compile(r"^\d{13}$")
 _WHITESPACE_RE = re.compile(r"\s+")
 
 
-def _clean_text(value: Optional[str]) -> str:
-    if not value:
+def _clean_text(value: Any) -> str:
+    if value is None or isinstance(value, (bool, dict, list)):
         return ""
-    return _WHITESPACE_RE.sub(
-        " ", html_lib.unescape(value).replace("\xa0", " ")
-    ).strip()
+    text = str(value)
+    if not text:
+        return ""
+    return _WHITESPACE_RE.sub(" ", html_lib.unescape(text).replace("\xa0", " ")).strip()
 
 
 def _unwrap_endeca_scalar(value: Any) -> Any:
@@ -189,7 +191,23 @@ def _extract_ww_promo_tags(raw_promos: Any) -> tuple[Optional[str], bool]:
 
 
 def _collect_endeca_records(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """Flatten Oracle Endeca / ATG nested contents->mainContent->records payloads."""
+    """Flatten Oracle Endeca / ATG and Constructor.io search JSON payloads."""
+    # Live Woolworths Constructor.io search API: {"response": {"results": [...]}}
+    cnstrc_resp = payload.get("response")
+    if isinstance(cnstrc_resp, dict) and isinstance(cnstrc_resp.get("results"), list):
+        cnstrc_records: list[dict[str, Any]] = []
+        for rec in cnstrc_resp["results"]:
+            if not isinstance(rec, dict):
+                continue
+            data = rec.get("data")
+            if isinstance(data, dict):
+                merged = {**rec, **data, "_cnstrc": True}
+                cnstrc_records.append(merged)
+            else:
+                cnstrc_records.append(rec)
+        if cnstrc_records:
+            return cnstrc_records
+
     direct = payload.get("products") or payload.get("records") or payload.get("items")
     if isinstance(direct, list):
         return [r for r in direct if isinstance(r, dict)]
@@ -340,6 +358,16 @@ class _WoolworthsHTMLParser(HTMLParser):
             self._card_depth = 0
 
 
+def _positive_decimal(value: Any) -> Optional[Decimal]:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        dec = Decimal(str(value)).quantize(Decimal("0.01"))
+        return dec if dec > 0 else None
+    except (InvalidOperation, ValueError):
+        return None
+
+
 def parse_woolworths_json(
     payload: dict[str, Any],
     *,
@@ -347,17 +375,33 @@ def parse_woolworths_json(
     default_category_slug: Optional[str] = None,
     query_term: Optional[str] = None,
 ) -> list[RawScrapedItem]:
-    """Parse Woolworths Food Endeca / ATG JSON catalog payloads into RawScrapedItem."""
+    """Parse Woolworths Food Endeca/ATG & Constructor.io JSON payloads."""
     entries = _collect_endeca_records(payload)
     items: list[RawScrapedItem] = []
 
     for entry in entries:
+        # Filter non-food fashion/homeware results from Constructor.io search
+        if entry.get("_cnstrc"):
+            prodtype = str(entry.get("prodtype") or "").strip().lower()
+            subtype = str(entry.get("subtype") or "").strip().lower()
+            if prodtype and prodtype not in (
+                "food",
+                "foods",
+                "grocery",
+                "groceries",
+                "household",
+            ):
+                if subtype != "foods":
+                    continue
+
         raw_name = _clean_text(
             _unwrap_endeca_scalar(
                 entry.get("displayName")
                 or entry.get("p_displayName")
                 or entry.get("name")
                 or entry.get("title")
+                or entry.get("value")
+                or entry.get("description")
             )
         )
         if not raw_name:
@@ -374,6 +418,8 @@ def parse_woolworths_json(
             )
             or None
         )
+        if brand and brand.lower() in ("woolies brands", "woolies"):
+            brand = "Woolworths"
         if brand is None and raw_name.lower().startswith(("woolworths ", "wfoods ")):
             brand = "Woolworths"
 
@@ -428,6 +474,22 @@ def parse_woolworths_json(
             or entry.get("promotionText")
         )
 
+        # Constructor.io South African pricing (p10 = ZA price, p10_wp = ZA was-price)
+        if list_price is None and entry.get("p10") is not None:
+            za_price = _positive_decimal(entry.get("p10"))
+            za_was = _positive_decimal(entry.get("p10_wp"))
+            if za_price is not None:
+                if za_was is not None and za_was > za_price:
+                    list_price = f"R {za_was:.2f}"
+                    sale_price = f"R {za_price:.2f}"
+                else:
+                    list_price = f"R {za_price:.2f}"
+            badges = entry.get("badges")
+            if isinstance(badges, dict) and any(
+                k.upper() in ("SAVE", "PROMO", "WREWARDS") for k in badges
+            ):
+                has_promo_badge = True
+
         effective_promo = tag_promo or sale_price
         if not list_price and not effective_promo:
             continue
@@ -448,11 +510,19 @@ def parse_woolworths_json(
         else:
             raw_price = list_price or effective_promo or ""
 
+        raw_url = _unwrap_endeca_scalar(
+            entry.get("detailPageUrl")
+            or entry.get("p_detailPageUrl")
+            or entry.get("url")
+            or entry.get("productUrl")
+        )
         raw_category_val = _unwrap_endeca_scalar(
             entry.get("category") or entry.get("p_category") or entry.get("department")
         )
         if not raw_category_val and isinstance(entry.get("breadcrumbs"), list):
             raw_category_val = "/".join(str(b) for b in entry["breadcrumbs"])
+        if not raw_category_val and raw_url:
+            raw_category_val = str(raw_url)
 
         category_slug = (
             infer_category_slug(
@@ -463,12 +533,6 @@ def parse_woolworths_json(
             or default_category_slug
         )
 
-        raw_url = _unwrap_endeca_scalar(
-            entry.get("detailPageUrl")
-            or entry.get("p_detailPageUrl")
-            or entry.get("url")
-            or entry.get("productUrl")
-        )
         source_url = urljoin(base_url, str(raw_url)) if raw_url else None
 
         items.append(
@@ -573,8 +637,11 @@ class WoolworthsScraper(BaseRetailerScraper):
     retailer_slug = "woolworths-food"
     base_url = "https://www.woolworths.co.za"
     search_path = "/server/searchCategory"
-    playwright_wait_selector = ".product-list__item, .product-card, .product-tile"
+    playwright_wait_selector = (
+        ".product-list__item, .product-card, .product-tile, [data-cnstrc-item-id]"
+    )
     playwright_json_patterns: tuple[str, ...] = (
+        "cnstrc.com/v1/search",
         "searchCategory",
         "format=json",
         "/server/",
@@ -590,7 +657,7 @@ class WoolworthsScraper(BaseRetailerScraper):
 
     def build_storefront_search_url(self, term: str) -> str:
         """Build live Woolworths Food storefront search URL for Playwright."""
-        return f"{self.base_url}/cat?Ntt={quote_plus(term)}"
+        return f"{self.base_url}/browse?searchterm={quote_plus(term)}"
 
     async def _scrape_via_playwright(self, terms: list[str]) -> list[RawScrapedItem]:
         fetcher = self.get_browser_fetcher()

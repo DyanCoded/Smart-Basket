@@ -33,20 +33,22 @@ import { useAuth } from '@/context/AuthContext';
 import { useSyncStatus } from '@/context/SyncStatusContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import {
-  enqueuePendingSync,
-  getLocalPantryItems,
-  upsertLocalPantryItem,
-} from '@/db/sqlite';
-import { getActiveHomeId, setActiveHomeId } from '@/services/api';
+  getActiveHomeId,
+  searchCatalogProducts,
+  setActiveHomeId,
+} from '@/services/api';
 import {
   recordOfflinePantryMutation,
-  SEED_CATALOG_PRODUCTS,
   syncAndCalculateSmartBasket,
   syncOfflineQueueToServer,
   updatePantryItemStatusOfflineFirst,
 } from '@/services/sync';
 import { HouseholdRealtimeStream } from '@/services/websocket';
-import { PantryItemResponse, PantryStatus } from '@/types/api';
+import {
+  PantryItemResponse,
+  PantryStatus,
+  ProductResponse,
+} from '@/types/api';
 
 type PantryViewMode = 'status' | 'aisle';
 
@@ -87,56 +89,65 @@ function getItemTitle(item: PantryItemResponse): string {
   return item.product_name ?? item.custom_name ?? 'Pantry Staple';
 }
 
-const INITIAL_PANTRY_FIXTURES: PantryItemResponse[] = [
-  {
-    id: '10000000-0000-4000-8000-000000000001',
-    home_id: DEFAULT_HOME_ID,
-    product_id: SEED_CATALOG_PRODUCTS.MILK_2L.id,
-    category_id: null,
-    custom_name: SEED_CATALOG_PRODUCTS.MILK_2L.name,
-    barcode: '6001299011011',
-    quantity: '1.00',
-    unit_type: SEED_CATALOG_PRODUCTS.MILK_2L.unit_type,
-    low_stock_threshold: '2.00',
-    status: 'low',
-    is_deleted: false,
-    updated_at: new Date().toISOString(),
-    product_name: SEED_CATALOG_PRODUCTS.MILK_2L.name,
-    category_name: 'Dairy & Eggs',
-  },
-  {
-    id: '10000000-0000-4000-8000-000000000002',
-    home_id: DEFAULT_HOME_ID,
-    product_id: SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.id,
-    category_id: null,
-    custom_name: SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.name,
-    barcode: '6001299011059',
-    quantity: '0.00',
-    unit_type: SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.unit_type,
-    low_stock_threshold: '1.00',
-    status: 'finished',
-    is_deleted: false,
-    updated_at: new Date().toISOString(),
-    product_name: SEED_CATALOG_PRODUCTS.WHITE_BREAD_700G.name,
-    category_name: 'Bakery',
-  },
-  {
-    id: '10000000-0000-4000-8000-000000000003',
-    home_id: DEFAULT_HOME_ID,
-    product_id: SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.id,
-    category_id: null,
-    custom_name: SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.name,
-    barcode: '6001299011028',
-    quantity: '2.00',
-    unit_type: SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.unit_type,
-    low_stock_threshold: '1.00',
-    status: 'ok',
-    is_deleted: false,
-    updated_at: new Date().toISOString(),
-    product_name: SEED_CATALOG_PRODUCTS.LARGE_EGGS_18PK.name,
-    category_name: 'Dairy & Eggs',
-  },
-];
+function formatUnitSize(unitSize: string, unitType: string): string {
+  const num = Number.parseFloat(unitSize);
+  const cleanNum = Number.isFinite(num)
+    ? Number.isInteger(num)
+      ? String(num)
+      : String(num)
+    : unitSize.trim();
+  const cleanUnit = unitType.trim();
+  if (!cleanUnit || cleanUnit.toLowerCase() === 'unit') {
+    return num === 1 ? '1 unit' : `${cleanNum}pk`;
+  }
+  return `${cleanNum}${cleanUnit}`;
+}
+
+function formatCatalogDropdownLabel(product: ProductResponse): string {
+  const brand = product.brand?.trim() ?? '';
+  let name = product.name.trim();
+  if (brand && name.toLowerCase().startsWith(brand.toLowerCase())) {
+    const stripped = name.slice(brand.length).replace(/^[\s·-]+/, '').trim();
+    if (stripped.length > 0) {
+      name = stripped;
+    }
+  }
+  const sizeLabel = formatUnitSize(product.unit_size, product.unit_type);
+  const nameLower = name.toLowerCase().replace(/\s+/g, '');
+  const sizeLower = sizeLabel.toLowerCase().replace(/\s+/g, '');
+  const parts: string[] = [];
+  if (brand) {
+    parts.push(brand);
+  }
+  parts.push(name);
+  if (sizeLabel && !nameLower.includes(sizeLower)) {
+    parts.push(sizeLabel);
+  }
+  return parts.join(' · ');
+}
+
+function inferProductCategoryBadge(product: ProductResponse): string {
+  if (product.category?.name && product.category.name.trim().length > 0) {
+    return product.category.name.trim();
+  }
+  const title = `${product.brand ?? ''} ${product.name}`.toLowerCase();
+  if (/(milk|egg|butter|yogurt|yoghurt|cheese|cream)/.test(title)) {
+    return 'Dairy & Eggs';
+  }
+  if (/(bread|roll|wrap|croissant|bun|bagel)/.test(title)) {
+    return 'Bakery';
+  }
+  if (/(apple|banana|potato|tomato|avocado|onion|spinach|veg|fruit)/.test(title)) {
+    return 'Fresh Produce';
+  }
+  if (/(tea|coffee|juice|soda|water|cola|drink)/.test(title)) {
+    return 'Beverages';
+  }
+  if (/(soap|wash|toilet|paper|detergent|dish|clean)/.test(title)) {
+    return 'Household';
+  }
+  return 'Pantry & Staples';
+}
 
 export default function PantryScreen() {
   const router = useRouter();
@@ -150,6 +161,9 @@ export default function PantryScreen() {
   const [viewMode, setViewMode] = useState<PantryViewMode>('status');
   const [expandedAisles, setExpandedAisles] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [catalogResults, setCatalogResults] = useState<ProductResponse[]>([]);
+  const [isSearchingCatalog, setIsSearchingCatalog] = useState<boolean>(false);
+  const [catalogSearchError, setCatalogSearchError] = useState<string | null>(null);
   const [isComparing, setIsComparing] = useState<boolean>(false);
   const [recentRestocked, setRecentRestocked] = useState<{
     item: PantryItemResponse;
@@ -162,27 +176,6 @@ export default function PantryScreen() {
   const loadAndSyncPantry = useCallback(async () => {
     setSyncState({ status: 'syncing' });
     setActiveHomeId(homeId);
-
-    const existing = await getLocalPantryItems(homeId);
-    if (existing.length === 0) {
-      for (const seedItem of INITIAL_PANTRY_FIXTURES) {
-        await upsertLocalPantryItem(seedItem);
-        await enqueuePendingSync(homeId, {
-          id: seedItem.id,
-          product_id: seedItem.product_id,
-          category_id: seedItem.category_id,
-          custom_name: seedItem.custom_name,
-          barcode: seedItem.barcode,
-          quantity: seedItem.quantity,
-          unit_type: seedItem.unit_type,
-          low_stock_threshold: seedItem.low_stock_threshold,
-          status: seedItem.status,
-          updated_at: seedItem.updated_at,
-          is_deleted: false,
-          note: 'Initial household pantry seed',
-        });
-      }
-    }
 
     const summary = await syncOfflineQueueToServer(homeId);
     setItems(summary.items);
@@ -221,6 +214,46 @@ export default function PantryScreen() {
   );
 
   const trimmedQuery = searchQuery.trim().toLowerCase();
+
+  // Debounced (~250ms) live catalog autocomplete against GET /api/v1/products
+  useEffect(() => {
+    const clean = searchQuery.trim();
+    if (clean.length < 2) {
+      setCatalogResults([]);
+      setIsSearchingCatalog(false);
+      setCatalogSearchError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsSearchingCatalog(true);
+    setCatalogSearchError(null);
+
+    const timer = setTimeout(() => {
+      void searchCatalogProducts(clean, 15, controller.signal)
+        .then((res) => {
+          if (!controller.signal.aborted) {
+            setCatalogResults(res.items);
+            setIsSearchingCatalog(false);
+          }
+        })
+        .catch((err: unknown) => {
+          if (controller.signal.aborted) {
+            return;
+          }
+          setCatalogResults([]);
+          setIsSearchingCatalog(false);
+          setCatalogSearchError(
+            err instanceof Error ? err.message : 'Unable to search catalog'
+          );
+        });
+    }, 250);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [searchQuery]);
 
   // Hidden `ok` items matching search query so users can re-flag them in one tap
   const restockedSearchMatches = useMemo(() => {
@@ -336,6 +369,69 @@ export default function PantryScreen() {
     await handleStatusChange(item, previousStatus);
   };
 
+  const handleSelectCatalogProduct = async (
+    product: ProductResponse,
+    initialStatus: PantryStatus = 'low'
+  ) => {
+    setSearchQuery('');
+    setCatalogResults([]);
+
+    // If this exact catalog product is already in the household pantry, update it
+    const existing = items.find(
+      (entry) => !entry.is_deleted && entry.product_id === product.id
+    );
+    if (existing) {
+      await handleStatusChange(existing, initialStatus);
+      return;
+    }
+
+    const displayName = formatCatalogDropdownLabel(product);
+    const newId = generateUuidV4();
+    const nowIso = new Date().toISOString();
+
+    const optimisticItem: PantryItemResponse = {
+      id: newId,
+      home_id: homeId,
+      product_id: product.id,
+      category_id: product.category_id,
+      custom_name: displayName,
+      barcode: product.barcode,
+      quantity: initialStatus === 'finished' ? '0.00' : '1.00',
+      unit_type: product.unit_type || 'unit',
+      low_stock_threshold: '1.00',
+      status: initialStatus,
+      is_deleted: false,
+      updated_at: nowIso,
+      product_name: displayName,
+      category_name: inferProductCategoryBadge(product),
+    };
+
+    setItems((prev) => [optimisticItem, ...prev]);
+    setSyncState({ status: 'syncing' });
+
+    const summary = await recordOfflinePantryMutation(homeId, {
+      id: newId,
+      product_id: product.id,
+      category_id: product.category_id,
+      custom_name: displayName,
+      barcode: product.barcode,
+      quantity: initialStatus === 'finished' ? '0.00' : '1.00',
+      unit_type: product.unit_type || 'unit',
+      low_stock_threshold: '1.00',
+      status: initialStatus,
+      updated_at: nowIso,
+      is_deleted: false,
+      note: `Added catalog product (${product.brand ?? 'brand'}) as ${initialStatus}`,
+    });
+
+    setItems(summary.items);
+    setSyncState({
+      status: summary.isOnline ? 'synced' : 'offline',
+      pendingCount: summary.pendingCount,
+      lastSyncedAt: summary.lastSyncedAt,
+    });
+  };
+
   const handleQuickAdd = async (initialStatus: PantryStatus = 'low') => {
     const cleanName = searchQuery.trim();
     if (!cleanName) {
@@ -344,6 +440,7 @@ export default function PantryScreen() {
 
     const newId = generateUuidV4();
     setSearchQuery('');
+    setCatalogResults([]);
     setSyncState({ status: 'syncing' });
 
     const summary = await recordOfflinePantryMutation(homeId, {
@@ -563,29 +660,39 @@ export default function PantryScreen() {
           <IconSymbol name="magnifyingglass" size={18} color={colors.textMuted} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search pantry to re-flag or add staple…"
+            placeholder="Search or add items..."
             placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
             returnKeyType="done"
             onSubmitEditing={() => {
-              if (restockedSearchMatches.length === 0 && searchQuery.trim()) {
+              if (
+                restockedSearchMatches.length === 0 &&
+                catalogResults.length === 0 &&
+                searchQuery.trim()
+              ) {
                 void handleQuickAdd('low');
               }
             }}
           />
+          {isSearchingCatalog ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : null}
           {searchQuery.length > 0 ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Clear search"
-              onPress={() => setSearchQuery('')}
+              onPress={() => {
+                setSearchQuery('');
+                setCatalogResults([]);
+              }}
               hitSlop={8}>
               <IconSymbol name="xmark" size={16} color={colors.textMuted} />
             </Pressable>
           ) : null}
         </View>
 
-        {/* Search Results for Hidden `ok` Items + Quick Add */}
+        {/* Live Catalog Autocomplete + In-Pantry Re-Flag + Custom Fallback Dropdown */}
         {trimmedQuery.length > 0 ? (
           <View
             style={[
@@ -626,6 +733,7 @@ export default function PantryScreen() {
                       <Pressable
                         onPress={() => {
                           setSearchQuery('');
+                          setCatalogResults([]);
                           void handleStatusChange(okItem, 'low');
                         }}
                         style={[
@@ -643,6 +751,7 @@ export default function PantryScreen() {
                       <Pressable
                         onPress={() => {
                           setSearchQuery('');
+                          setCatalogResults([]);
                           void handleStatusChange(okItem, 'finished');
                         }}
                         style={[
@@ -663,31 +772,152 @@ export default function PantryScreen() {
               </View>
             ) : null}
 
-            <View style={styles.quickAddRow}>
-              <Pressable
-                onPress={() => void handleQuickAdd('low')}
-                style={[
-                  styles.quickAddButton,
-                  { backgroundColor: colors.primaryMuted },
-                ]}>
-                <IconSymbol name="plus" size={16} color={colors.primary} />
-                <Text
-                  numberOfLines={1}
-                  style={[styles.quickAddText, { color: colors.primary }]}>
-                  Add &ldquo;{searchQuery.trim()}&rdquo; as Low
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => void handleQuickAdd('finished')}
-                style={[
-                  styles.quickAddFinishedBtn,
-                  { backgroundColor: colors.statusFinishedBg },
-                ]}>
-                <Text
-                  style={[Typography.badge, { color: colors.statusFinished }]}>
-                  + Finished
-                </Text>
-              </Pressable>
+            {/* Live Catalog Matches (Brand · Name · Size + Category badge; zero prices) */}
+            {trimmedQuery.length >= 2 ? (
+              <View style={styles.searchSection}>
+                <View style={styles.catalogSectionHeader}>
+                  <Text style={[Typography.badge, { color: colors.textMuted }]}>
+                    LIVE CATALOG MATCHES
+                  </Text>
+                  {isSearchingCatalog ? (
+                    <Text style={[Typography.caption, { color: colors.textMuted }]}>
+                      Searching…
+                    </Text>
+                  ) : null}
+                </View>
+
+                {catalogResults.length > 0 ? (
+                  catalogResults.map((product) => {
+                    const label = formatCatalogDropdownLabel(product);
+                    const categoryBadge = inferProductCategoryBadge(product);
+                    return (
+                      <View
+                        key={product.id}
+                        style={[
+                          styles.catalogRow,
+                          {
+                            backgroundColor: colors.surfaceElevated,
+                            borderColor: colors.borderSubtle,
+                          },
+                        ]}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Add ${label} to pantry as low`}
+                          onPress={() =>
+                            void handleSelectCatalogProduct(product, 'low')
+                          }
+                          style={({ pressed }) => [
+                            styles.catalogRowMain,
+                            { opacity: pressed ? 0.72 : 1 },
+                          ]}>
+                          <Text
+                            numberOfLines={2}
+                            style={[
+                              Typography.bodySemiBold,
+                              { color: colors.text },
+                            ]}>
+                            {label}
+                          </Text>
+                          <View style={styles.catalogMetaRow}>
+                            <View
+                              style={[
+                                styles.categoryBadgePill,
+                                { backgroundColor: colors.surfaceMuted },
+                              ]}>
+                              <Text
+                                style={[
+                                  styles.categoryBadgeText,
+                                  { color: colors.textSecondary },
+                                ]}>
+                                {categoryBadge}
+                              </Text>
+                            </View>
+                          </View>
+                        </Pressable>
+
+                        <View style={styles.reFlagActions}>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Add ${label} as low`}
+                            onPress={() =>
+                              void handleSelectCatalogProduct(product, 'low')
+                            }
+                            style={[
+                              styles.flagChip,
+                              { backgroundColor: colors.statusLowBg },
+                            ]}>
+                            <Text
+                              style={[
+                                Typography.badge,
+                                { color: colors.statusLow },
+                              ]}>
+                              Low
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Add ${label} as finished`}
+                            onPress={() =>
+                              void handleSelectCatalogProduct(product, 'finished')
+                            }
+                            style={[
+                              styles.flagChip,
+                              { backgroundColor: colors.statusFinishedBg },
+                            ]}>
+                            <Text
+                              style={[
+                                Typography.badge,
+                                { color: colors.statusFinished },
+                              ]}>
+                              Finished
+                            </Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    );
+                  })
+                ) : !isSearchingCatalog ? (
+                  <Text style={[Typography.caption, { color: colors.textMuted }]}>
+                    {catalogSearchError
+                      ? 'Offline — catalog search unavailable; add a custom item below.'
+                      : 'No catalog brands matched — add it as a custom item below.'}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {/* Secondary Custom Fallback Option */}
+            <View
+              style={[
+                styles.customFallbackDivider,
+                { borderTopColor: colors.borderSubtle },
+              ]}>
+              <View style={styles.quickAddRow}>
+                <Pressable
+                  onPress={() => void handleQuickAdd('low')}
+                  style={[
+                    styles.quickAddButton,
+                    { backgroundColor: colors.primaryMuted },
+                  ]}>
+                  <IconSymbol name="plus" size={16} color={colors.primary} />
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.quickAddText, { color: colors.primary }]}>
+                    Add &ldquo;{searchQuery.trim()}&rdquo; as custom item
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void handleQuickAdd('finished')}
+                  style={[
+                    styles.quickAddFinishedBtn,
+                    { backgroundColor: colors.statusFinishedBg },
+                  ]}>
+                  <Text
+                    style={[Typography.badge, { color: colors.statusFinished }]}>
+                    + Finished
+                  </Text>
+                </Pressable>
+              </View>
             </View>
           </View>
         ) : null}
@@ -1064,6 +1294,44 @@ const styles = StyleSheet.create({
   },
   searchSection: {
     gap: Spacing.sm,
+  },
+  catalogSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  catalogRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.sm + 4,
+    paddingVertical: 10,
+    borderRadius: Radii.md,
+    borderWidth: 1,
+  },
+  catalogRowMain: {
+    flex: 1,
+    gap: 5,
+  },
+  catalogMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  categoryBadgePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radii.pill,
+  },
+  categoryBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  customFallbackDivider: {
+    borderTopWidth: 1,
+    paddingTop: Spacing.sm,
   },
   reFlagRow: {
     flexDirection: 'row',

@@ -54,7 +54,9 @@ router = APIRouter(
     summary="Search and filter product catalog",
     description=(
         "Search and filter grocery products by case-insensitive partial name, "
-        "brand, barcode, or category UUID with offset-based pagination."
+        "brand, barcode, or category UUID with offset-based pagination. "
+        "Results prioritize products with active store_prices across multiple "
+        "national supermarket chains."
     ),
     response_description="Paginated list of matching catalog products.",
 )

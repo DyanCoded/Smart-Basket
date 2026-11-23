@@ -284,10 +284,11 @@ export async function fetchHouseholdBasket(
 
 export async function searchCatalogProducts(
   query = '',
-  limit = 20
+  limit = 15,
+  signal?: AbortSignal
 ): Promise<ProductListResponse> {
   const qs = `?q=${encodeURIComponent(query)}&limit=${limit}`;
-  return apiRequest<ProductListResponse>(`/products${qs}`);
+  return apiRequest<ProductListResponse>(`/products${qs}`, { signal });
 }
 
 export async function fetchProductById(

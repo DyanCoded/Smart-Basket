@@ -14,7 +14,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from scripts.run_scrapers import build_telemetry_report, main, run_pipeline
+from scripts.run_scrapers import (
+    build_parser,
+    build_telemetry_report,
+    main,
+    purge_synthetic_seed_products,
+    run_pipeline,
+)
 from src.models.entities import PriceHistory, Product, StorePrice
 from src.scrapers.base import BaseRetailerScraper, PlaceholderFixtureScraper
 from src.scrapers.feed_loader import load_feed_items_from_dir
@@ -421,3 +427,59 @@ def test_source_dir_cli_ingestion_updates_db_and_recalculates_basket(
     assert split is not None
     assert Decimal(str(split["total_price"])) == Decimal("97.47")
     assert Decimal(str(split["savings_amount"])) > Decimal("0.00")
+
+
+# ---------------------------------------------------------------------------
+# 6. Synthetic Seed Product Purge (--purge-seed)
+# ---------------------------------------------------------------------------
+
+
+def test_purge_synthetic_seed_products_preserves_live_catalog_and_stores(
+    db_session: Session,
+):
+    import uuid
+
+    # Add a genuine live-scraped product alongside the 18 synthetic seed products
+    checkers_store = resolve_canonical_store(db_session, "checkers")
+    assert checkers_store is not None
+    live_product = Product(
+        id=uuid.uuid4(),
+        name="Clover Fresh Full Cream Milk 2L",
+        brand="Clover",
+        barcode="6001299015274",
+        unit_size=Decimal("2.00"),
+        unit_type="L",
+    )
+    db_session.add(live_product)
+    db_session.flush()
+    db_session.add(
+        StorePrice(
+            store_id=checkers_store.id,
+            product_id=live_product.id,
+            price=Decimal("36.99"),
+            is_promotional=False,
+            is_in_stock=True,
+        )
+    )
+    db_session.flush()
+
+    # Dry-run reports all 18 synthetic seed products without deleting anything
+    dry_stats = purge_synthetic_seed_products(db_session, dry_run=True, commit=False)
+    assert dry_stats["products_purged"] == 18
+    assert dry_stats["store_prices_purged"] == 90
+    assert db_session.scalar(select(func.count(Product.id))) == 19
+
+    # Real purge removes only the 18 synthetic 6001299011xxx seed products
+    stats = purge_synthetic_seed_products(db_session, dry_run=False, commit=False)
+    assert stats["products_purged"] == 18
+    assert stats["store_prices_purged"] == 90
+
+    remaining = list(db_session.scalars(select(Product)).all())
+    assert len(remaining) == 1
+    assert remaining[0].id == live_product.id
+    assert remaining[0].barcode == "6001299015274"
+    assert db_session.scalar(select(func.count(StorePrice.id))) == 1
+
+    # CLI flag parses cleanly
+    args = build_parser().parse_args(["--purge-seed", "--retailer", "all", "--dry-run"])
+    assert args.purge_seed is True

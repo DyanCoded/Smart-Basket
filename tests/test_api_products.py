@@ -205,3 +205,82 @@ def test_get_product_prices_not_found(client: TestClient):
     data = response.json()
     assert "detail" in data
     assert f"Product with id '{random_id}' not found" in data["detail"]
+
+
+def test_list_products_prioritizes_multi_chain_prices_and_brand_name_search(
+    client: TestClient,
+    db_session,
+):
+    """Products with more active chain store_prices rank first in GET /products."""
+    from sqlalchemy import select
+
+    from src.models.entities import Product, Store, StorePrice
+
+    stores = list(
+        db_session.scalars(select(Store).where(Store.is_active.is_(True))).all()
+    )
+    assert len(stores) >= 3
+
+    p_zero = Product(
+        id=uuid.uuid4(),
+        name="Alpha Artisan Milk 1L",
+        brand="ZeroChain",
+        barcode="6009999000001",
+        unit_size=Decimal("1.00"),
+        unit_type="L",
+    )
+    p_one = Product(
+        id=uuid.uuid4(),
+        name="Beta Farm Milk 1L",
+        brand="OneChain",
+        barcode="6009999000002",
+        unit_size=Decimal("1.00"),
+        unit_type="L",
+    )
+    p_three = Product(
+        id=uuid.uuid4(),
+        name="Zeta Comparable Milk 2L",
+        brand="ThreeChain",
+        barcode="6009999000003",
+        unit_size=Decimal("2.00"),
+        unit_type="L",
+    )
+    db_session.add_all([p_zero, p_one, p_three])
+    db_session.flush()
+
+    db_session.add(
+        StorePrice(
+            store_id=stores[0].id,
+            product_id=p_one.id,
+            price=Decimal("24.99"),
+            is_promotional=False,
+            is_in_stock=True,
+        )
+    )
+    for idx in range(3):
+        db_session.add(
+            StorePrice(
+                store_id=stores[idx].id,
+                product_id=p_three.id,
+                price=Decimal("34.99") + Decimal(idx),
+                is_promotional=False,
+                is_in_stock=True,
+            )
+        )
+    db_session.flush()
+
+    # Query specifically matching our 3 test products ("Chain" in brand)
+    res = client.get("/api/v1/products?q=Chain&limit=15")
+    assert res.status_code == 200
+    items = res.json()["items"]
+    returned_ids = [item["id"] for item in items]
+
+    # Even though 'Zeta' sorts last alphabetically, 3 active chains ranks first!
+    assert returned_ids == [str(p_three.id), str(p_one.id), str(p_zero.id)]
+
+    # Multi-word search combining brand + product name matches cleanly
+    multi_res = client.get("/api/v1/products?q=ThreeChain%20Milk&limit=15")
+    assert multi_res.status_code == 200
+    multi_items = multi_res.json()["items"]
+    assert len(multi_items) == 1
+    assert multi_items[0]["id"] == str(p_three.id)

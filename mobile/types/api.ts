@@ -203,6 +203,12 @@ export interface BasketCalculationResponse {
   total_items_requested: number;
 }
 
+export interface CategorySummary {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export interface ProductResponse {
   id: string;
   name: string;
@@ -211,6 +217,7 @@ export interface ProductResponse {
   unit_size: string;
   unit_type: string;
   category_id: string | null;
+  category?: CategorySummary | null;
 }
 
 export interface ProductListResponse {

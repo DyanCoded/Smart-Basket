@@ -5,6 +5,7 @@ Usage:
     python scripts/run_scrapers.py --retailer checkers --queries "milk,bread,eggs"
     python scripts/run_scrapers.py --retailer all --engine playwright --headed
     python scripts/run_scrapers.py --retailer all --engine http --dry-run
+    python scripts/run_scrapers.py --purge-seed --retailer all --engine playwright
     python scripts/run_scrapers.py --retailer all --force-history
     python scripts/run_scrapers.py --retailer all --source-dir tests/fixtures/feeds
     python scripts/run_scrapers.py --retailer all --summary-json scraper_summary.json
@@ -26,9 +27,18 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from sqlalchemy import delete, or_, select, update  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
 from src.core.database import SessionLocal  # noqa: E402
+from src.models import fixtures as seed_fixtures  # noqa: E402
+from src.models.entities import (  # noqa: E402
+    BasketItem,
+    PantryItem,
+    PriceHistory,
+    Product,
+    StorePrice,
+)
 from src.scrapers.base import BaseRetailerScraper, ScraperEngine  # noqa: E402
 from src.scrapers.feed_loader import (  # noqa: E402
     FeedSnapshotScraper,
@@ -64,6 +74,101 @@ SCRAPER_REGISTRY: dict[str, Callable[[], BaseRetailerScraper]] = {
     "woolworths-food": WoolworthsScraper,
     "spar": SparScraper,
 }
+
+
+SYNTHETIC_SEED_BARCODE_PREFIX = "6001299011"
+
+
+def purge_synthetic_seed_products(
+    session: Session,
+    *,
+    dry_run: bool = False,
+    commit: bool = True,
+) -> dict[str, int]:
+    """Remove the 18 synthetic 6001299011xxx seed products & their prices.
+
+    Preserves retailers, canonical stores, categories, households/users, and
+    all live scraped products. Nulls `pantry_items.product_id` references
+    before deleting synthetic products so household pantry records stay intact.
+    """
+    seed_ids = [p["id"] for p in seed_fixtures.PRODUCTS]
+    matching_ids = list(
+        session.scalars(
+            select(Product.id).where(
+                or_(
+                    Product.barcode.like(f"{SYNTHETIC_SEED_BARCODE_PREFIX}%"),
+                    Product.id.in_(seed_ids),
+                )
+            )
+        ).all()
+    )
+
+    if not matching_ids:
+        return {
+            "products_purged": 0,
+            "store_prices_purged": 0,
+            "price_history_purged": 0,
+            "basket_items_purged": 0,
+            "pantry_links_cleared": 0,
+        }
+
+    pantry_links = len(
+        list(
+            session.scalars(
+                select(PantryItem.id).where(PantryItem.product_id.in_(matching_ids))
+            ).all()
+        )
+    )
+    basket_items_count = len(
+        list(
+            session.scalars(
+                select(BasketItem.id).where(BasketItem.product_id.in_(matching_ids))
+            ).all()
+        )
+    )
+    store_prices_count = len(
+        list(
+            session.scalars(
+                select(StorePrice.id).where(StorePrice.product_id.in_(matching_ids))
+            ).all()
+        )
+    )
+    price_history_count = len(
+        list(
+            session.scalars(
+                select(PriceHistory.id).where(PriceHistory.product_id.in_(matching_ids))
+            ).all()
+        )
+    )
+
+    if not dry_run:
+        session.execute(
+            update(PantryItem)
+            .where(PantryItem.product_id.in_(matching_ids))
+            .values(product_id=None)
+        )
+        session.execute(
+            delete(BasketItem).where(BasketItem.product_id.in_(matching_ids))
+        )
+        session.execute(
+            delete(StorePrice).where(StorePrice.product_id.in_(matching_ids))
+        )
+        session.execute(
+            delete(PriceHistory).where(PriceHistory.product_id.in_(matching_ids))
+        )
+        session.execute(delete(Product).where(Product.id.in_(matching_ids)))
+        if commit:
+            session.commit()
+        else:
+            session.flush()
+
+    return {
+        "products_purged": len(matching_ids),
+        "store_prices_purged": store_prices_count,
+        "price_history_purged": price_history_count,
+        "basket_items_purged": basket_items_count,
+        "pantry_links_cleared": pantry_links,
+    }
 
 
 def build_live_registry(
@@ -294,6 +399,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--purge-seed",
+        action="store_true",
+        help=(
+            "Remove the 18 synthetic 6001299011xxx seed products and their "
+            "store_prices/price_history before scraping live catalogs."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Scrape, normalize, and diff against DB without writing changes.",
@@ -353,6 +466,28 @@ def main(
     print(f"Retailers : {', '.join(target_retailers)}")
     print(f"Queries   : {', '.join(query_terms) or '(all)'}")
     print("-" * 78)
+
+    if args.purge_seed:
+        owns_purge_session = session is None
+        purge_db = session or SessionLocal()
+        try:
+            purge_stats = purge_synthetic_seed_products(
+                purge_db,
+                dry_run=args.dry_run,
+                commit=owns_purge_session and not args.dry_run,
+            )
+            action_verb = "Would purge" if args.dry_run else "Purged"
+            print(
+                f"Seed Purge: {action_verb} "
+                f"{purge_stats['products_purged']} synthetic products, "
+                f"{purge_stats['store_prices_purged']} store_prices, "
+                f"{purge_stats['price_history_purged']} price_history rows "
+                f"(pantry links cleared: {purge_stats['pantry_links_cleared']})."
+            )
+            print("-" * 78)
+        finally:
+            if owns_purge_session:
+                purge_db.close()
 
     summaries = asyncio.run(
         run_pipeline(

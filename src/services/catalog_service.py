@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Sequence
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from src.models.entities import Product, Retailer, Store, StorePrice
@@ -20,18 +20,31 @@ def get_products(
     limit: int = 20,
     offset: int = 0,
 ) -> tuple[Sequence[Product], int]:
-    """Search and filter products with case-insensitive matching and pagination."""
+    """Search and filter products, prioritizing multi-chain priced items."""
     stmt = select(Product).options(joinedload(Product.category))
 
     if query:
-        clean_q = f"%{query.strip()}%"
-        stmt = stmt.where(
-            or_(
+        stripped = query.strip()
+        if stripped:
+            clean_q = f"%{stripped}%"
+            full_match = or_(
                 Product.name.ilike(clean_q),
                 Product.brand.ilike(clean_q),
                 Product.barcode.ilike(clean_q),
             )
-        )
+            tokens = [tok for tok in stripped.split() if tok]
+            if len(tokens) > 1:
+                token_clauses = [
+                    or_(
+                        Product.name.ilike(f"%{tok}%"),
+                        Product.brand.ilike(f"%{tok}%"),
+                        Product.barcode.ilike(f"%{tok}%"),
+                    )
+                    for tok in tokens
+                ]
+                stmt = stmt.where(or_(full_match, and_(*token_clauses)))
+            else:
+                stmt = stmt.where(full_match)
 
     if brand:
         stmt = stmt.where(Product.brand.ilike(f"%{brand.strip()}%"))
@@ -43,8 +56,28 @@ def get_products(
     count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
     total = session.scalar(count_stmt) or 0
 
-    # Paginate and order by name
-    paginated_stmt = stmt.order_by(Product.name.asc()).offset(offset).limit(limit)
+    # Prioritize products with active store_prices across multiple national chains
+    chain_counts = (
+        select(
+            StorePrice.product_id.label("product_id"),
+            func.count(func.distinct(StorePrice.store_id)).label("chain_count"),
+        )
+        .join(Store, StorePrice.store_id == Store.id)
+        .where(Store.is_active.is_(True))
+        .group_by(StorePrice.product_id)
+        .subquery()
+    )
+
+    paginated_stmt = (
+        stmt.outerjoin(chain_counts, Product.id == chain_counts.c.product_id)
+        .order_by(
+            func.coalesce(chain_counts.c.chain_count, 0).desc(),
+            Product.name.asc(),
+            Product.id.asc(),
+        )
+        .offset(offset)
+        .limit(limit)
+    )
     items = session.scalars(paginated_stmt).unique().all()
 
     return items, total
